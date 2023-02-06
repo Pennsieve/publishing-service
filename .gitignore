@@ -16,3 +16,6 @@
 
 # IntelliJ
 .idea
+
+# Lambda Binaries Zip files
+lambda/bin
