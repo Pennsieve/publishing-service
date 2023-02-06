@@ -6,7 +6,7 @@ apk update; \
 apk add --no-cache git
 
   # Set working directory
-WORKDIR /go/src/github.com/pennsieve/publishing-service/api
+WORKDIR /go/src/github.com/pennsieve/publishing-service/lambda/service
 
   # Run tests
 CMD CGO_ENABLED=0 go test -v ./...
