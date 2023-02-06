@@ -9,4 +9,7 @@ apk add --no-cache git
 WORKDIR /go/src/github.com/pennsieve/publishing-service/lambda/service
 
   # Run tests
+RUN pwd
+RUN ls -l
+RUN find .
 CMD CGO_ENABLED=0 go test -v ./...
