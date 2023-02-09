@@ -1,7 +1,7 @@
 resource "aws_lambda_function" "service_lambda" {
-  description       = "Lambda Function which handles requests for the serverless metadata model service"
+  description       = "Lambda Function which handles requests for the serverless Publishing Service"
   function_name     = "${var.environment_name}-${var.service_name}-service-lambda-${data.terraform_remote_state.region.outputs.aws_region_shortname}"
-  handler           = "model_service"
+  handler           = "publishing_service"
   runtime           = "go1.x"
   role              = aws_iam_role.publishing_service_lambda_role.arn
   timeout           = 300
