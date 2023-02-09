@@ -44,4 +44,17 @@ data "aws_iam_policy_document" "publishing_service_iam_policy_document" {
     resources = ["*"]
   }
 
+  statement {
+    sid    = "PublishingServiceLambdaEC2Permissions"
+    effect = "Allow"
+    actions = [
+      "ec2:CreateNetworkInterface",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DeleteNetworkInterface",
+      "ec2:AssignPrivateIpAddresses",
+      "ec2:UnassignPrivateIpAddresses"
+    ]
+    resources = ["*"]
+  }
+
 }
