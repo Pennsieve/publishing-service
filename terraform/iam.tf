@@ -24,7 +24,7 @@ resource "aws_iam_role_policy_attachment" "publishing_service_lambda_iam_policy_
 }
 
 resource "aws_iam_policy" "publishing_service_lambda_iam_policy" {
-  name   = "${var.environment_name}-${var.service_name}-model-service-lambda-iam-policy-${data.terraform_remote_state.region.outputs.aws_region_shortname}"
+  name   = "${var.environment_name}-${var.service_name}-lambda-iam-policy-${data.terraform_remote_state.region.outputs.aws_region_shortname}"
   path   = "/"
   policy = data.aws_iam_policy_document.publishing_service_iam_policy_document.json
 }
@@ -32,7 +32,7 @@ resource "aws_iam_policy" "publishing_service_lambda_iam_policy" {
 data "aws_iam_policy_document" "publishing_service_iam_policy_document" {
 
   statement {
-    sid    = "PublishingServiceLambda-Logs-Permissions"
+    sid    = "PublishingServiceLambdaLogsPermissions"
     effect = "Allow"
     actions = [
       "logs:CreateLogGroup",
@@ -40,6 +40,19 @@ data "aws_iam_policy_document" "publishing_service_iam_policy_document" {
       "logs:PutDestination",
       "logs:PutLogEvents",
       "logs:DescribeLogStreams"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "PublishingServiceLambdaEC2Permissions"
+    effect = "Allow"
+    actions = [
+      "ec2:CreateNetworkInterface",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DeleteNetworkInterface",
+      "ec2:AssignPrivateIpAddresses",
+      "ec2:UnassignPrivateIpAddresses"
     ]
     resources = ["*"]
   }
