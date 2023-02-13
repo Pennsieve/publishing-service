@@ -57,4 +57,24 @@ data "aws_iam_policy_document" "publishing_service_iam_policy_document" {
     resources = ["*"]
   }
 
+  statement {
+    sid = "PublishingServiceLambdaDynamoDBPermissions"
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:DescribeTable",
+      "dynamodb:BatchGetItem",
+      "dynamodb:GetItem",
+      "dynamodb:Query",
+      "dynamodb:Scan",
+      "dynamodb:PartiQLSelect"
+    ]
+
+    resources = [
+      aws_dynamodb_table.repositories_dynamo_table.arn,
+      "${aws_dynamodb_table.repositories_dynamo_table.arn}/*"
+    ]
+
+  }
+
 }
