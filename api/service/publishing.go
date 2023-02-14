@@ -8,7 +8,7 @@ import (
 )
 
 type PublishingService interface {
-	GetPublishingRepositories() (string, error)
+	GetPublishingRepositories() ([]models.Repository, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
