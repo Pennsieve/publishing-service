@@ -2,11 +2,19 @@ package handler
 
 import (
 	"github.com/aws/aws-lambda-go/events"
-	"log"
+	"github.com/pennsieve/publishing-service/api/service"
+	log "github.com/sirupsen/logrus"
+	"os"
 )
 
 func init() {
-	log.Println("init() ")
+	log.SetFormatter(&log.JSONFormatter{})
+	ll, err := log.ParseLevel(os.Getenv("LOG_LEVEL"))
+	if err != nil {
+		log.SetLevel(log.InfoLevel)
+	} else {
+		log.SetLevel(ll)
+	}
 }
 
 func PublishingServiceHandler(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
@@ -14,13 +22,20 @@ func PublishingServiceHandler(request events.APIGatewayV2HTTPRequest) (*events.A
 	var apiResponse *events.APIGatewayV2HTTPResponse
 
 	log.Println("PublishingServiceHandler() ")
-	apiResponse, err = handleRequest()
+
+	publishingService := service.NewPublishingService()
+	repos, err := publishingService.GetPublishingRepositories()
+
+	if err != nil {
+		log.Fatalln("publishingService.GetPublishingRepositories() failed")
+	}
+	apiResponse, err = handleRequest(repos)
 
 	return apiResponse, err
 }
 
-func handleRequest() (*events.APIGatewayV2HTTPResponse, error) {
-	log.Println("handleRequest() ")
+func handleRequest(repos string) (*events.APIGatewayV2HTTPResponse, error) {
+	log.Println("handleRequest() repos: ", repos)
 	apiResponse := events.APIGatewayV2HTTPResponse{Body: "{'response':'hello'}", StatusCode: 200}
 
 	return &apiResponse, nil
