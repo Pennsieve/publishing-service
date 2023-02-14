@@ -5,6 +5,10 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/pennsieve/publishing-service/api v0.0.0-20230213182212-d38d700ba332 h1:pdsfNtWyk/WJazxQJjrJuRqzj78tlUiPpx+Y8vvkN1I=
 github.com/pennsieve/publishing-service/api v0.0.0-20230213182212-d38d700ba332/go.mod h1:JBPTGaxUo+E6xmyKKuZ62dGRQ026pO0EQJ+DS888674=
+github.com/pennsieve/publishing-service/api v0.0.0-20230214155840-5b49e73ea519 h1:ZbcF4hwzt5510r8AD8sED36DO4qRMLvXdtiMjNNGaN0=
+github.com/pennsieve/publishing-service/api v0.0.0-20230214155840-5b49e73ea519/go.mod h1:B+SzEo75APdEcSdspYJzyWojc5adqA9r0IXv5f//uDY=
+github.com/pennsieve/publishing-service/api v0.0.0-20230214163953-790952f66bb6 h1:XqUW3ra9jGHXW2eGQo1XKBsVHSYNeQ0stuUWSbAfZAk=
+github.com/pennsieve/publishing-service/api v0.0.0-20230214163953-790952f66bb6/go.mod h1:B+SzEo75APdEcSdspYJzyWojc5adqA9r0IXv5f//uDY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/sirupsen/logrus v1.9.0 h1:trlNQbNUG3OdDrDil03MCb1H2o9nJ1x4/5LYw7byDE0=

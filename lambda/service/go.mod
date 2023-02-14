@@ -5,7 +5,7 @@ go 1.18
 require github.com/aws/aws-lambda-go v1.34.1
 
 require (
-	github.com/pennsieve/publishing-service/api v0.0.0-20230213182212-d38d700ba332
+	github.com/pennsieve/publishing-service/api v0.0.0-20230214163953-790952f66bb6
 	github.com/sirupsen/logrus v1.9.0
 )
 

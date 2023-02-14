@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"encoding/json"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/pennsieve/publishing-service/api/service"
+	"github.com/pennsieve/publishing-service/api/store"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"regexp"
 )
 
 func init() {
@@ -19,24 +22,41 @@ func init() {
 
 func PublishingServiceHandler(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
 	var err error
-	var apiResponse *events.APIGatewayV2HTTPResponse
+	var response *events.APIGatewayV2HTTPResponse
 
 	log.Println("PublishingServiceHandler() ")
 
-	publishingService := service.NewPublishingService()
-	repos, err := publishingService.GetPublishingRepositories()
+	store := store.NewPublishingStore()
+	service := service.NewPublishingService(store)
 
 	if err != nil {
 		log.Fatalln("publishingService.GetPublishingRepositories() failed")
 	}
-	apiResponse, err = handleRequest(repos)
 
-	return apiResponse, err
+	response, err = handleRequest(request, service)
+
+	return response, err
 }
 
-func handleRequest(repos string) (*events.APIGatewayV2HTTPResponse, error) {
-	log.Println("handleRequest() repos: ", repos)
-	apiResponse := events.APIGatewayV2HTTPResponse{Body: "{'response':'hello'}", StatusCode: 200}
+func handleRequest(request events.APIGatewayV2HTTPRequest, service service.PublishingService) (*events.APIGatewayV2HTTPResponse, error) {
+	log.Println("handleRequest()")
 
-	return &apiResponse, nil
+	var err error
+	var jsonBody []byte
+
+	r := regexp.MustCompile(`(?P<method>) (?P<pathKey>.*)`)
+	routeKeyParts := r.FindStringSubmatch(request.RouteKey)
+	routeKey := routeKeyParts[r.SubexpIndex("pathKey")]
+
+	switch routeKey {
+	case "/publishing":
+		// TODO: handle errors
+		result, _ := service.GetPublishingRepositories()
+		// Parse response into JSON structure
+		jsonBody, err = json.Marshal(result)
+	}
+
+	response := events.APIGatewayV2HTTPResponse{Body: string(jsonBody), StatusCode: 200}
+
+	return &response, err
 }
