@@ -6,12 +6,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/pennsieve/pennsieve-go-api/pkg/core"
-	"github.com/pennsieve/publishing-service/api/models"
 	"os"
 )
 
 type PublishingStore interface {
-	GetRepositories() ([]models.Repository, error)
+	GetRepositories() (*dynamodb.QueryOutput, error)
 }
 
 func getTableName(tableName string) string {
@@ -20,8 +19,12 @@ func getTableName(tableName string) string {
 }
 
 func NewPublishingStore() *publishingStore {
-	// TODO: handle errors
+	// TODO: handle and/or propagate errors
 	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		// TODO: handle error
+	}
+
 	db := dynamodb.NewFromConfig(cfg)
 
 	return &publishingStore{
