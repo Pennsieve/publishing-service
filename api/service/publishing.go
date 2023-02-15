@@ -5,6 +5,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/store"
+	log "github.com/sirupsen/logrus"
 )
 
 type PublishingService interface {
@@ -22,9 +23,11 @@ type publishingService struct {
 }
 
 func (s *publishingService) GetPublishingRepositories() ([]models.Repository, error) {
+	log.Println("GetPublishingRepositories()")
 	output, err := s.store.GetRepositories()
 
 	if err != nil {
+		log.Fatalln("GetPublishingRepositories() err: ", err)
 		return nil, err
 	}
 

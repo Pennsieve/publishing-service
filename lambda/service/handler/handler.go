@@ -48,6 +48,8 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 	routeKeyParts := r.FindStringSubmatch(request.RouteKey)
 	routeKey := routeKeyParts[r.SubexpIndex("pathKey")]
 
+	log.Println("handleRequest() routeKey: ", routeKey)
+
 	switch routeKey {
 	case "/publishing":
 		// TODO: handle errors
@@ -56,7 +58,11 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 		jsonBody, err = json.Marshal(result)
 	}
 
-	response := events.APIGatewayV2HTTPResponse{Body: string(jsonBody), StatusCode: 200}
+	jsonString := string(jsonBody)
+	log.Println("handleRequest() jsonString: ", jsonString)
+
+	response := events.APIGatewayV2HTTPResponse{Body: jsonString, StatusCode: 200}
+	log.Println("handleRequest() response: ", response)
 
 	return &response, err
 }
