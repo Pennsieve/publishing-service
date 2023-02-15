@@ -2,10 +2,11 @@ module github.com/pennsieve/publishing-service/service
 
 go 1.18
 
-require github.com/aws/aws-lambda-go v1.34.1
+replace github.com/pennsieve/publishing-service/api => ../../api
 
 require (
-	github.com/pennsieve/publishing-service/api v0.0.0-20230214163953-790952f66bb6
+	github.com/aws/aws-lambda-go v1.34.1
+	github.com/pennsieve/publishing-service/api v0.0.0-20230214163953-790952f66bb6 // replaced (see above)
 	github.com/sirupsen/logrus v1.9.0
 )
 
