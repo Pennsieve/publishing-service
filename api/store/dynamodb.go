@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/pennsieve/pennsieve-go-api/pkg/core"
+	log "github.com/sirupsen/logrus"
 	"os"
 )
 
@@ -39,13 +40,16 @@ type publishingStore struct {
 }
 
 func (s *publishingStore) GetRepositories() (*dynamodb.QueryOutput, error) {
+	log.Println("GetRepositories()")
 	queryInput := dynamodb.QueryInput{
 		TableName: aws.String(s.repositoriesTable),
 		Select:    "ALL_ATTRIBUTES",
 	}
+	log.Println("GetRepositories() queryInput: ", queryInput)
 
 	result, err := s.db.Query(context.Background(), &queryInput)
 	if err != nil {
+		log.Fatalln("GetRepositories() err: ", err)
 		return nil, err
 	}
 
