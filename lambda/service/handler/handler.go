@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/pennsieve/publishing-service/api/service"
 	"github.com/pennsieve/publishing-service/api/store"
@@ -43,6 +44,7 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 
 	var err error
 	var jsonBody []byte
+	var jsonBody2 []byte
 
 	r := regexp.MustCompile(`(?P<method>) (?P<pathKey>.*)`)
 	routeKeyParts := r.FindStringSubmatch(request.RouteKey)
@@ -53,15 +55,21 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 	switch routeKey {
 	case "/publishing":
 		// TODO: handle errors
-		result, _ := service.GetPublishingRepositories()
+		result, result2, _ := service.GetPublishingRepositories()
 		// Parse response into JSON structure
 		jsonBody, err = json.Marshal(result)
+		jsonBody2, err = json.Marshal(result2)
 	}
 
 	jsonString := string(jsonBody)
 	log.Println("handleRequest() jsonString: ", jsonString)
 
-	response := events.APIGatewayV2HTTPResponse{Body: jsonString, StatusCode: 200}
+	jsonString2 := string(jsonBody2)
+	log.Println("handleRequest() jsonString2: ", jsonString2)
+
+	jsonResponse := fmt.Sprintf("{%q: %s, %q: %s}", "Repositories", jsonString, "Questions", jsonString2)
+
+	response := events.APIGatewayV2HTTPResponse{Body: jsonResponse, StatusCode: 200}
 	log.Println("handleRequest() response: ", response)
 
 	return &response, err
