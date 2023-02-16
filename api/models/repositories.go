@@ -15,7 +15,7 @@ type Repository struct {
 	URL                string     `dynamodbav:"URL"`
 	OverviewDocument   S3Location `dynamodbav:"OverviewDocument"`
 	LogoFile           S3Location `dynamodbav:"LogoFile"`
-	Questions          []int64    `dynamodbav:"Questions"`
+	Questions          []int      `dynamodbav:"Questions"`
 	CreatedAt          int64      `dynamodbav:"CreatedAt"`
 	UpdatedAt          int64      `dynamodbav:"UpdatedAt"`
 }
