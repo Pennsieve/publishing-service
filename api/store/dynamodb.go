@@ -14,8 +14,8 @@ import (
 )
 
 type PublishingStore interface {
-	GetRepositories() (*dynamodb.ScanOutput, error)
-	GetQuestions() (*dynamodb.ScanOutput, error)
+	GetRepositories() ([]models.Repository, error)
+	GetQuestions() ([]models.Question, error)
 	//GetQuestion(id int64) (string, error)
 }
 
