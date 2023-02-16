@@ -50,12 +50,22 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 
 	log.Println("handleRequest() routeKey: ", routeKey)
 
+	// TODO: handle errors
+
 	switch routeKey {
-	case "/publishing":
-		// TODO: handle errors
-		result, _ := service.GetPublishingRepositories()
-		// Parse response into JSON structure
-		jsonBody, err = json.Marshal(result)
+	case "/publishing/repositories":
+		switch request.RequestContext.HTTP.Method {
+		case "GET":
+			result, _ := service.GetPublishingRepositories()
+			// Parse response into JSON structure
+			jsonBody, err = json.Marshal(result)
+		}
+	case "/publishing/questions":
+		switch request.RequestContext.HTTP.Method {
+		case "GET":
+			result, _ := service.GetProposalQuestions()
+			jsonBody, err = json.Marshal(result)
+		}
 	}
 
 	jsonString := string(jsonBody)

@@ -8,6 +8,7 @@ import (
 
 type PublishingService interface {
 	GetPublishingRepositories() ([]dtos.RepositoryDTO, error)
+	GetProposalQuestions() ([]dtos.QuestionDTO, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
@@ -51,4 +52,25 @@ func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, e
 		repositoryDTOs = append(repositoryDTOs, dtos.BuildRepositoryDTO(repositories[i], questionMap))
 	}
 	return repositoryDTOs, nil
+}
+
+func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
+	log.Println("GetProposalQuestions()")
+	var err error
+
+	questions, err := s.store.GetQuestions()
+	if err != nil {
+		log.Fatalln("GetProposalQuestions() store.GetQuestions() err: ", err)
+		return nil, err
+	}
+
+	var questionDTOs []dtos.QuestionDTO
+	for i := 0; i <= len(questions); i++ {
+		questionDTOs = append(questionDTOs, dtos.QuestionDTO{
+			Id:       questions[i].Id,
+			Question: questions[i].Question,
+		})
+	}
+
+	return questionDTOs, nil
 }
