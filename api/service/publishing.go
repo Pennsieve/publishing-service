@@ -9,7 +9,7 @@ import (
 )
 
 type PublishingService interface {
-	GetPublishingRepositories() ([]models.Repository, error)
+	GetPublishingRepositories() ([]models.Repository, []models.Question, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
@@ -22,13 +22,14 @@ type publishingService struct {
 	store store.PublishingStore
 }
 
-func (s *publishingService) GetPublishingRepositories() ([]models.Repository, error) {
+func (s *publishingService) GetPublishingRepositories() ([]models.Repository, []models.Question, error) {
 	log.Println("GetPublishingRepositories()")
-	output, err := s.store.GetRepositories()
+	var err error
 
+	output, err := s.store.GetRepositories()
 	if err != nil {
-		log.Fatalln("GetPublishingRepositories() err: ", err)
-		return nil, err
+		log.Fatalln("GetPublishingRepositories() store.GetRepositories() err: ", err)
+		return nil, nil, err
 	}
 
 	var items []models.Repository
@@ -36,10 +37,26 @@ func (s *publishingService) GetPublishingRepositories() ([]models.Repository, er
 		repository := models.Repository{}
 		err = attributevalue.UnmarshalMap(item, &repository)
 		if err != nil {
-			return nil, fmt.Errorf("UnmarshalMap: %v\n", err)
+			return nil, nil, fmt.Errorf("UnmarshalMap: %v\n", err)
 		}
 		items = append(items, repository)
 	}
 
-	return items, nil
+	output2, err := s.store.GetQuestions()
+	if err != nil {
+		log.Fatalln("GetPublishingRepositories() store.GetQuestions() err: ", err)
+		return nil, nil, err
+	}
+
+	var items2 []models.Question
+	for _, item := range output2.Items {
+		question := models.Question{}
+		err = attributevalue.UnmarshalMap(item, &question)
+		if err != nil {
+			return nil, nil, fmt.Errorf("UnmarshalMap: %v\n", err)
+		}
+		items2 = append(items2, question)
+	}
+
+	return items, items2, nil
 }
