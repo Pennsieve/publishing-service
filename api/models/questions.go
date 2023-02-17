@@ -1,6 +1,6 @@
 package models
 
 type Question struct {
-	Id       int64  `dynamodbav:"Id"`
+	Id       int    `dynamodbav:"Id"`
 	Question string `dynamodbav:"Question"`
 }
