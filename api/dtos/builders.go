@@ -1,6 +1,9 @@
 package dtos
 
-import "github.com/pennsieve/publishing-service/api/models"
+import (
+	"github.com/pennsieve/publishing-service/api/aws/s3"
+	"github.com/pennsieve/publishing-service/api/models"
+)
 
 // TODO: can we better abstract the type for questionMap?
 func BuildRepositoryDTO(repository models.Repository, questionMap map[int]QuestionDTO) RepositoryDTO {
@@ -11,6 +14,20 @@ func BuildRepositoryDTO(repository models.Repository, questionMap map[int]Questi
 		questionDTOs = append(questionDTOs, questionMap[questionNumber])
 	}
 
+	presigner := s3.MakePresigner()
+
+	overviewDocument, _ := presigner.GetObject(
+		repository.OverviewDocument.S3Bucket,
+		repository.OverviewDocument.S3Key,
+		3600,
+	)
+
+	logoFile, _ := presigner.GetObject(
+		repository.LogoFile.S3Bucket,
+		repository.LogoFile.S3Key,
+		3600,
+	)
+
 	return RepositoryDTO{
 		OrganizationNodeId:  repository.OrganizationNodeId,
 		Name:                repository.Name,
@@ -19,8 +36,8 @@ func BuildRepositoryDTO(repository models.Repository, questionMap map[int]Questi
 		Type:                repository.Type,
 		Description:         repository.Description,
 		URL:                 repository.URL,
-		OverviewDocumentUrl: "TODO: make pre-signed S3 URL",
-		LogoFileUrl:         "TODO: make pre-signed S3 URL",
+		OverviewDocumentUrl: overviewDocument.URL,
+		LogoFileUrl:         logoFile.URL,
 		Questions:           questionDTOs,
 		CreatedAt:           repository.CreatedAt,
 		UpdatedAt:           repository.UpdatedAt,
