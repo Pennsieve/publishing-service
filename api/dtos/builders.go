@@ -5,6 +5,14 @@ import (
 	"github.com/pennsieve/publishing-service/api/models"
 )
 
+func BuildQuestionDTO(question models.Question) QuestionDTO {
+	return QuestionDTO{
+		Id:       question.Id,
+		Question: question.Question,
+		Type:     question.Type,
+	}
+}
+
 // TODO: can we better abstract the type for questionMap?
 func BuildRepositoryDTO(repository models.Repository, questionMap map[int]QuestionDTO) RepositoryDTO {
 	// build list of selected Questions for the Repository

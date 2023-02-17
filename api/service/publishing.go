@@ -40,10 +40,7 @@ func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, e
 	// create a Questions lookup map indexed by Id number
 	var questionMap = make(map[int]dtos.QuestionDTO)
 	for i := 0; i < len(questions); i++ {
-		questionMap[questions[i].Id] = dtos.QuestionDTO{
-			Id:       questions[i].Id,
-			Question: questions[i].Question,
-		}
+		questionMap[questions[i].Id] = dtos.BuildQuestionDTO(questions[i])
 	}
 
 	// TODO: create RepositoryDTO from repositories and questions
