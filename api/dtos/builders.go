@@ -6,7 +6,7 @@ import "github.com/pennsieve/publishing-service/api/models"
 func BuildRepositoryDTO(repository models.Repository, questionMap map[int]QuestionDTO) RepositoryDTO {
 	// build list of selected Questions for the Repository
 	var questionDTOs []QuestionDTO
-	for i := 0; i <= len(repository.Questions); i++ {
+	for i := 0; i < len(repository.Questions); i++ {
 		questionNumber := repository.Questions[i]
 		questionDTOs = append(questionDTOs, questionMap[questionNumber])
 	}

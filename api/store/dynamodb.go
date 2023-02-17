@@ -107,7 +107,3 @@ func (s *publishingStore) GetQuestions() ([]models.Question, error) {
 	log.Println("GetQuestions()")
 	return fetch[models.Question](s.db, s.questionsTable)
 }
-
-//func (s *publishingStore) GetQuestion(id int64) (*dynamodb.ScanOutput, error) {
-//
-//}

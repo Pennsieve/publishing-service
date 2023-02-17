@@ -39,7 +39,7 @@ func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, e
 
 	// create a Questions lookup map indexed by Id number
 	var questionMap map[int]dtos.QuestionDTO
-	for i := 0; i <= len(questions); i++ {
+	for i := 0; i < len(questions); i++ {
 		questionMap[questions[i].Id] = dtos.QuestionDTO{
 			Id:       questions[i].Id,
 			Question: questions[i].Question,
@@ -48,7 +48,7 @@ func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, e
 
 	// TODO: create RepositoryDTO from repositories and questions
 	var repositoryDTOs []dtos.RepositoryDTO
-	for i := 0; i <= len(repositories); i++ {
+	for i := 0; i < len(repositories); i++ {
 		repositoryDTOs = append(repositoryDTOs, dtos.BuildRepositoryDTO(repositories[i], questionMap))
 	}
 	return repositoryDTOs, nil
@@ -65,7 +65,7 @@ func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
 	}
 
 	var questionDTOs []dtos.QuestionDTO
-	for i := 0; i <= len(questions); i++ {
+	for i := 0; i < len(questions); i++ {
 		questionDTOs = append(questionDTOs, dtos.QuestionDTO{
 			Id:       questions[i].Id,
 			Question: questions[i].Question,
