@@ -16,7 +16,7 @@ import (
 type PublishingStore interface {
 	GetRepositories() ([]models.Repository, error)
 	GetQuestions() ([]models.Question, error)
-	//GetQuestion(id int64) (string, error)
+	GetDatasetProposals()
 }
 
 func getTableName(tableName string) string {

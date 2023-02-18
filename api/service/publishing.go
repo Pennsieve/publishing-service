@@ -9,6 +9,8 @@ import (
 type PublishingService interface {
 	GetPublishingRepositories() ([]dtos.RepositoryDTO, error)
 	GetProposalQuestions() ([]dtos.QuestionDTO, error)
+	GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error)
+	GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
@@ -70,4 +72,14 @@ func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
 	}
 
 	return questionDTOs, nil
+}
+
+func (s *publishingService) GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error) {
+	log.Println("GetProposalQuestions()")
+	return nil, nil
+}
+
+func (s *publishingService) GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error) {
+	log.Println("GetProposalQuestions()")
+	return nil, nil
 }
