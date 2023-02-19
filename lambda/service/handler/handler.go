@@ -122,6 +122,8 @@ func handleGetDatasetProposals(request events.APIGatewayV2HTTPRequest, claims *a
 		}
 		return nil, fmt.Errorf("unauthorized")
 	}
+
+	return nil, fmt.Errorf("unknown GetDatasetProposals service request")
 }
 
 // TODO: move this to a 'utils' package
