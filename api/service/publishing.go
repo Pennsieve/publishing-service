@@ -2,6 +2,7 @@ package service
 
 import (
 	"github.com/pennsieve/publishing-service/api/dtos"
+	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/store"
 	log "github.com/sirupsen/logrus"
 )
@@ -74,12 +75,32 @@ func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
 	return questionDTOs, nil
 }
 
+func proposalDTOsList(proposals []models.DatasetProposal) []dtos.DatasetProposalDTO {
+	var proposalDTOs []dtos.DatasetProposalDTO
+	for i := 0; i < len(proposals); i++ {
+		proposalDTOs = append(proposalDTOs, dtos.BuildDatasetProposalDTO(proposals[i]))
+	}
+	return proposalDTOs
+}
+
 func (s *publishingService) GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error) {
 	log.Println("GetProposalQuestions()")
-	return nil, nil
+
+	proposals, err := s.store.GetDatasetProposalsForUser(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return proposalDTOsList(proposals), nil
 }
 
 func (s *publishingService) GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error) {
 	log.Println("GetProposalQuestions()")
-	return nil, nil
+
+	proposals, err := s.store.GetDatasetProposalsForWorkspace(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return proposalDTOsList(proposals), nil
 }

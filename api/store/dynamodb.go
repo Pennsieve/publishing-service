@@ -16,7 +16,8 @@ import (
 type PublishingStore interface {
 	GetRepositories() ([]models.Repository, error)
 	GetQuestions() ([]models.Question, error)
-	GetDatasetProposals()
+	GetDatasetProposalsForUser(id int64) ([]models.DatasetProposal, error)
+	GetDatasetProposalsForWorkspace(id int64) ([]models.DatasetProposal, error)
 }
 
 func getTableName(tableName string) string {
@@ -34,16 +35,23 @@ func NewPublishingStore() *publishingStore {
 	db := dynamodb.NewFromConfig(cfg)
 
 	return &publishingStore{
-		db:                db,
-		repositoriesTable: getTableName("REPOSITORIES_TABLE"),
-		questionsTable:    getTableName("REPOSITORY_QUESTIONS_TABLE"),
+		db:                    db,
+		repositoriesTable:     getTableName("REPOSITORIES_TABLE"),
+		questionsTable:        getTableName("REPOSITORY_QUESTIONS_TABLE"),
+		datasetProposalsTable: getTableName("DATASET_PROPOSAL_TABLE"),
 	}
 }
 
 type publishingStore struct {
-	db                *dynamodb.Client
-	repositoriesTable string
-	questionsTable    string
+	db                    *dynamodb.Client
+	repositoriesTable     string
+	questionsTable        string
+	datasetProposalsTable string
+}
+
+func (s *publishingStore) GetDatasetProposals() {
+	//TODO implement me
+	panic("implement me")
 }
 
 func scan(client *dynamodb.Client, tableName string) (*dynamodb.ScanOutput, error) {
@@ -63,8 +71,19 @@ func scan(client *dynamodb.Client, tableName string) (*dynamodb.ScanOutput, erro
 	return result, nil
 }
 
+func query(client *dynamodb.Client, predicate *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
+	log.Println("query() predicate: ", predicate)
+	result, err := client.Query(context.TODO(), predicate)
+	if err != nil {
+		log.Fatalln("query() err: ", err)
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // TODO: figure out struct embedding to simplify list of types allowed?
-func transform[T models.Repository | models.Question](items []map[string]types.AttributeValue) ([]T, error) {
+func transform[T models.Repository | models.Question | models.DatasetProposal](items []map[string]types.AttributeValue) ([]T, error) {
 	var results []T
 	for _, item := range items {
 		var result T
@@ -98,6 +117,26 @@ func fetch[T models.Repository | models.Question](client *dynamodb.Client, table
 	return results, nil
 }
 
+func find[T models.DatasetProposal](client *dynamodb.Client, queryInput *dynamodb.QueryInput) ([]T, error) {
+	log.Println("find() queryInput: ", queryInput)
+	var err error
+
+	output, err := query(client, queryInput)
+	if err != nil {
+		log.Fatalln("find() - query() err: ", err)
+		return nil, err
+	}
+
+	// transform each Item in output from DynamoDB to type T
+	results, err := transform[T](output.Items)
+	if err != nil {
+		log.Fatalln("find() - transform() err: ", err)
+		return nil, err
+	}
+
+	return results, nil
+}
+
 func (s *publishingStore) GetRepositories() ([]models.Repository, error) {
 	log.Println("GetRepositories()")
 	return fetch[models.Repository](s.db, s.repositoriesTable)
@@ -106,4 +145,29 @@ func (s *publishingStore) GetRepositories() ([]models.Repository, error) {
 func (s *publishingStore) GetQuestions() ([]models.Question, error) {
 	log.Println("GetQuestions()")
 	return fetch[models.Question](s.db, s.questionsTable)
+}
+
+func (s *publishingStore) GetDatasetProposalsForUser(id int64) ([]models.DatasetProposal, error) {
+	queryInput := dynamodb.QueryInput{
+		TableName:              aws.String(s.datasetProposalsTable),
+		KeyConditionExpression: aws.String("UserId = :id"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":id": &types.AttributeValueMemberN{Value: string(id)},
+		},
+		Select: "ALL_ATTRIBUTES",
+	}
+	return find[models.DatasetProposal](s.db, &queryInput)
+}
+
+func (s *publishingStore) GetDatasetProposalsForWorkspace(id int64) ([]models.DatasetProposal, error) {
+	queryInput := dynamodb.QueryInput{
+		TableName:              aws.String(s.datasetProposalsTable),
+		IndexName:              aws.String("RepositoryIdIndex"),
+		KeyConditionExpression: aws.String("RepositoryId = :id"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":id": &types.AttributeValueMemberN{Value: string(id)},
+		},
+		Select: "ALL_PROJECTED_ATTRIBUTES",
+	}
+	return find[models.DatasetProposal](s.db, &queryInput)
 }

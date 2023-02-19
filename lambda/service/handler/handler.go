@@ -124,6 +124,7 @@ func handleGetDatasetProposals(request events.APIGatewayV2HTTPRequest, claims *a
 	}
 }
 
+// TODO: move this to a 'utils' package
 func stringToInt64(value string) int64 {
 	result, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
@@ -132,10 +133,12 @@ func stringToInt64(value string) int64 {
 	return result
 }
 
+// TODO: move this to the Authorizer, or a support package
 func isAuthorizedUser(userId int64, claims *authorizer.Claims) bool {
 	return userId == claims.UserClaim.Id
 }
 
+// TODO: move this to the Authorizer, or a support package
 func isAuthorizedWorkspace(workspaceId int64, claims *authorizer.Claims) bool {
 	// may need to iterate? (if a member of multiple workspaces)
 	return workspaceId == claims.OrgClaim.IntId
