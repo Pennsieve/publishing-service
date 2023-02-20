@@ -2,16 +2,13 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/pennsieve/pennsieve-go-api/pkg/authorizer"
-	"github.com/pennsieve/publishing-service/api/dtos"
 	"github.com/pennsieve/publishing-service/api/service"
 	"github.com/pennsieve/publishing-service/api/store"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"regexp"
-	"strconv"
 )
 
 func init() {
@@ -46,6 +43,7 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 	log.Println("handleRequest()")
 
 	var err error
+	var statusCode int
 	var jsonBody []byte
 
 	claims := authorizer.ParseClaims(request.RequestContext.Authorizer.Lambda)
@@ -56,92 +54,147 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 
 	log.Println("handleRequest() routeKey: ", routeKey)
 
-	// TODO: handle errors
+	// TODO: create function for each invocation
+	// TODO: each invocation function shall invoke the Service to process the request
+	// TODO: each invocation function shall return an APIGatewayV2HTTPResponse, error
+	// TODO: each invocation function shall format success responses (in JSON)
+	// TODO: each invocation function shall generate error responses
+	// TODO: if an invocation function returns an error, the top-level handler will generate a 500 with the error
+
+	// TODO: figure out authorization
 
 	switch routeKey {
 	case "/publishing/repositories":
 		switch request.RequestContext.HTTP.Method {
 		case "GET":
-			result, _ := service.GetPublishingRepositories()
-			// Parse response into JSON structure
-			jsonBody, err = json.Marshal(result)
+			jsonBody, statusCode = handleGetPublishingRepositories(service)
 		}
 	case "/publishing/questions":
 		switch request.RequestContext.HTTP.Method {
 		case "GET":
-			result, _ := service.GetProposalQuestions()
-			jsonBody, err = json.Marshal(result)
+			jsonBody, statusCode = handleGetProposalQuestions(service)
 		}
-	case "/publishing/proposals":
+	case "/publishing/proposal":
 		switch request.RequestContext.HTTP.Method {
 		case "GET":
-			result, _ := handleGetDatasetProposals(request, claims, service)
-			jsonBody, err = json.Marshal(result)
+			if ok := authorized(); ok {
+				jsonBody, statusCode = handleGetUserDatasetProposals(claims, service)
+			}
+			jsonBody = nil
+			statusCode = 401
+			//case "POST":
+			//	result, _ := handleCreateDatasetProposal(request, claims, service)
+			//	jsonBody, err = json.Marshal(result)
+		}
+	case "/publishing/submission":
+		switch request.RequestContext.HTTP.Method {
+		case "GET":
+			if ok := authorized(); ok {
+				jsonBody, statusCode = handleGetWorkspaceDatasetProposals(claims, service)
+			}
+			jsonBody = nil
+			statusCode = 401
 		}
 	}
 
 	jsonString := string(jsonBody)
 	log.Println("handleRequest() jsonString: ", jsonString)
 
-	response := events.APIGatewayV2HTTPResponse{Body: jsonString, StatusCode: 200}
+	response := events.APIGatewayV2HTTPResponse{Body: jsonString, StatusCode: statusCode}
 	log.Println("handleRequest() response: ", response)
 
 	return &response, err
 }
 
-func handleGetDatasetProposals(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]dtos.DatasetProposalDTO, error) {
-	// get query params
-	queryParams := request.QueryStringParameters
-	userIdString, userIdFound := queryParams["user_id"]
-	workspaceIdString, workspaceIdFound := queryParams["workspace_id"]
-
-	// if user_id and workspace_id are both present, then error
-	if userIdFound && workspaceIdFound {
-		return nil, fmt.Errorf("invalid request: cannot provide both user_id and workspace_id")
-	}
-
-	// if user_id and workspace_id are both absent, then error
-	if !userIdFound && !workspaceIdFound {
-		return nil, fmt.Errorf("invalid request: must provide user_id or workspace_id")
-	}
-
-	// if user_id provided, then validate authorized by User claim
-	if userIdFound {
-		userId := stringToInt64(userIdString)
-		if isAuthorizedUser(userId, claims) {
-			return service.GetDatasetProposalsForUser(userId)
-		}
-
-	}
-
-	// if workspace_id provided, then validate authorized by Organization claim (and Team?)
-	if workspaceIdFound {
-		workspaceId := stringToInt64(workspaceIdString)
-		if isAuthorizedWorkspace(workspaceId, claims) {
-			return service.GetDatasetProposalsForWorkspace(workspaceId)
-		}
-		return nil, fmt.Errorf("unauthorized")
-	}
-
-	return nil, fmt.Errorf("unknown GetDatasetProposals service request")
+// TODO: figure out authorization
+func authorized() bool {
+	return true
 }
 
-// TODO: move this to a 'utils' package
-func stringToInt64(value string) int64 {
-	result, err := strconv.ParseInt(value, 10, 64)
+//func handleTheRequest() ([]byte, int) {
+//	// invoke service.Function()
+//	// check return; map err to HTTP Status code
+//
+//	// marshall service response
+//	jsonBody, err := json.Marshal(nil)
+//	if err != nil {
+//		return nil, 500
+//	}
+//	statusCode := 200
+//	return jsonBody, statusCode
+//}
+
+func handleGetPublishingRepositories(service service.PublishingService) ([]byte, int) {
+	result, err := service.GetPublishingRepositories()
 	if err != nil {
-		return -1
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
 	}
-	return result
+
+	jsonBody, err := json.Marshal(result)
+	if err != nil {
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
+	}
+
+	return jsonBody, 200
 }
 
-// TODO: move this to the Authorizer, or a support package
-func isAuthorizedUser(userId int64, claims *authorizer.Claims) bool {
-	return userId == claims.UserClaim.Id
+func handleGetProposalQuestions(service service.PublishingService) ([]byte, int) {
+	result, err := service.GetProposalQuestions()
+	if err != nil {
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
+	}
+
+	jsonBody, err := json.Marshal(result)
+	if err != nil {
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
+	}
+
+	return jsonBody, 200
 }
 
-// TODO: move this to the Authorizer, or a support package
-func isAuthorizedWorkspace(workspaceId int64, claims *authorizer.Claims) bool {
-	// may need to iterate? (if a member of multiple workspaces)
-	return workspaceId == claims.OrgClaim.IntId
+func handleGetUserDatasetProposals(claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	// get user id from User Claim
+	id := claims.UserClaim.Id
+
+	result, err := service.GetDatasetProposalsForUser(id)
+	if err != nil {
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
+	}
+
+	jsonBody, err := json.Marshal(result)
+	if err != nil {
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
+	}
+
+	return jsonBody, 200
 }
+
+// TODO: ensure the user in on Publishers Team in the Workspace
+func handleGetWorkspaceDatasetProposals(claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	// get workspace id from Organization Claim
+	id := claims.OrgClaim.IntId
+
+	result, err := service.GetDatasetProposalsForWorkspace(id)
+	if err != nil {
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
+	}
+
+	jsonBody, err := json.Marshal(result)
+	if err != nil {
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
+	}
+
+	return jsonBody, 200
+}
+
+//func handleCreateDatasetProposal() {
+//
+//}
