@@ -2,6 +2,7 @@ package service
 
 import (
 	"github.com/pennsieve/publishing-service/api/dtos"
+	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/store"
 	log "github.com/sirupsen/logrus"
 )
@@ -9,6 +10,8 @@ import (
 type PublishingService interface {
 	GetPublishingRepositories() ([]dtos.RepositoryDTO, error)
 	GetProposalQuestions() ([]dtos.QuestionDTO, error)
+	GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error)
+	GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
@@ -40,10 +43,7 @@ func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, e
 	// create a Questions lookup map indexed by Id number
 	var questionMap = make(map[int]dtos.QuestionDTO)
 	for i := 0; i < len(questions); i++ {
-		questionMap[questions[i].Id] = dtos.QuestionDTO{
-			Id:       questions[i].Id,
-			Question: questions[i].Question,
-		}
+		questionMap[questions[i].Id] = dtos.BuildQuestionDTO(questions[i])
 	}
 
 	// TODO: create RepositoryDTO from repositories and questions
@@ -73,4 +73,34 @@ func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
 	}
 
 	return questionDTOs, nil
+}
+
+func proposalDTOsList(proposals []models.DatasetProposal) []dtos.DatasetProposalDTO {
+	var proposalDTOs []dtos.DatasetProposalDTO
+	for i := 0; i < len(proposals); i++ {
+		proposalDTOs = append(proposalDTOs, dtos.BuildDatasetProposalDTO(proposals[i]))
+	}
+	return proposalDTOs
+}
+
+func (s *publishingService) GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error) {
+	log.Println("GetProposalQuestions()")
+
+	proposals, err := s.store.GetDatasetProposalsForUser(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return proposalDTOsList(proposals), nil
+}
+
+func (s *publishingService) GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error) {
+	log.Println("GetProposalQuestions()")
+
+	proposals, err := s.store.GetDatasetProposalsForWorkspace(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return proposalDTOsList(proposals), nil
 }

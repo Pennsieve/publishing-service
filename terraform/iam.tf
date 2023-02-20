@@ -74,7 +74,9 @@ data "aws_iam_policy_document" "publishing_service_iam_policy_document" {
       aws_dynamodb_table.repositories_dynamo_table.arn,
       "${aws_dynamodb_table.repositories_dynamo_table.arn}/*",
       aws_dynamodb_table.repository_questions_dynamo_table.arn,
-      "${aws_dynamodb_table.repository_questions_dynamo_table.arn}/*"
+      "${aws_dynamodb_table.repository_questions_dynamo_table.arn}/*",
+      aws_dynamodb_table.dataset_proposals_dynamo_table.arn,
+      "${aws_dynamodb_table.dataset_proposals_dynamo_table.arn}/*"
     ]
 
   }

@@ -3,7 +3,6 @@ module github.com/pennsieve/publishing-service/api
 go 1.18
 
 require (
-	github.com/aws/aws-sdk-go v1.44.203
 	github.com/aws/aws-sdk-go-v2 v1.17.4
 	github.com/aws/aws-sdk-go-v2/config v1.18.12
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.9.4
