@@ -199,25 +199,30 @@ func handleGetWorkspaceDatasetProposals(claims *authorizer.Claims, service servi
 }
 
 func handleCreateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	log.Println("handleCreateDatasetProposal()")
 	err := fastjson.Validate(request.Body)
 	if err != nil {
+		log.Fatalln("handleCreateDatasetProposal() request body validation failed: ", err)
 		return nil, 500
 	}
 
 	// Unmarshal JSON into Dataset Proposal DTO
 	bytes := []byte(request.Body)
-	var res dtos.DatasetProposalDTO
-	json.Unmarshal(bytes, &res)
+	var requestDTO dtos.DatasetProposalDTO
+	json.Unmarshal(bytes, &requestDTO)
 
-	log.Println("handleCreateDatasetProposal() res: ", res)
+	log.Println("handleCreateDatasetProposal() requestDTO: ", requestDTO)
 
-	result, err := service.CreateDatasetProposal(int(claims.UserClaim.Id), res)
+	resultDTO, err := service.CreateDatasetProposal(int(claims.UserClaim.Id), requestDTO)
 	if err != nil {
+		log.Fatalln("handleCreateDatasetProposal() - service.CreateDatasetProposal() failed: ", err)
 		return nil, 500
 	}
+	log.Println("handleCreateDatasetProposal() resultDTO: ", resultDTO)
 
-	jsonBody, err := json.Marshal(result)
+	jsonBody, err := json.Marshal(resultDTO)
 	if err != nil {
+		log.Fatalln("handleCreateDatasetProposal() - json.Marshal() failed: ", err)
 		// TODO: provide a better response than nil on a 500
 		return nil, 500
 	}
