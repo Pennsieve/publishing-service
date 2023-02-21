@@ -129,6 +129,6 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		return nil, err
 	}
 
-	dtoResult := dtos.BuildDatasetProposalDTO(result)
+	dtoResult := dtos.BuildDatasetProposalDTO(*result)
 	return &dtoResult, nil
 }
