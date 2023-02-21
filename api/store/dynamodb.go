@@ -18,6 +18,7 @@ type PublishingStore interface {
 	GetQuestions() ([]models.Question, error)
 	GetDatasetProposalsForUser(id int64) ([]models.DatasetProposal, error)
 	GetDatasetProposalsForWorkspace(id int64) ([]models.DatasetProposal, error)
+	CreateDatasetProposal(proposal *models.DatasetProposal) (models.DatasetProposal, error)
 }
 
 func getTableName(tableName string) string {
@@ -170,4 +171,29 @@ func (s *publishingStore) GetDatasetProposalsForWorkspace(id int64) ([]models.Da
 		Select: "ALL_PROJECTED_ATTRIBUTES",
 	}
 	return find[models.DatasetProposal](s.db, &queryInput)
+}
+
+func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
+	var err error
+	data, err := attributevalue.MarshalMap(proposal)
+	if err != nil {
+		return nil, err
+	}
+
+	output, err := s.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+		TableName:    aws.String(s.datasetProposalsTable),
+		Item:         data,
+		ReturnValues: "ALL_OLD",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var item models.DatasetProposal
+	err = attributevalue.UnmarshalMap(output.Attributes, &item)
+	if err != nil {
+		return nil, err
+	}
+
+	return &item, nil
 }

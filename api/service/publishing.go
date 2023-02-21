@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+	"github.com/google/uuid"
 	"github.com/pennsieve/publishing-service/api/dtos"
 	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/store"
@@ -12,6 +14,7 @@ type PublishingService interface {
 	GetProposalQuestions() ([]dtos.QuestionDTO, error)
 	GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error)
 	GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error)
+	CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
@@ -103,4 +106,29 @@ func (s *publishingService) GetDatasetProposalsForWorkspace(id int64) ([]dtos.Da
 	}
 
 	return proposalDTOsList(proposals), nil
+}
+
+func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
+	var survey []models.Survey
+	for i := 0; i < len(dto.Survey); i++ {
+		survey = append(survey, dtos.BuildSurvey(dto.Survey[i]))
+	}
+
+	proposal := &models.DatasetProposal{
+		UserId:         userId,
+		ProposalNodeId: fmt.Sprintf("%s:%s:%s", "N", "proposal", uuid.NewString()),
+		Name:           dto.Name,
+		Description:    dto.Description,
+		RepositoryId:   dto.RepositoryId,
+		Status:         "DRAFT",
+		Survey:         survey,
+	}
+
+	result, err := s.store.CreateDatasetProposal(proposal)
+	if err != nil {
+		return nil, err
+	}
+
+	dtoResult := dtos.BuildDatasetProposalDTO(result)
+	return &dtoResult, nil
 }
