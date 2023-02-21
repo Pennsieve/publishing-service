@@ -18,7 +18,7 @@ type PublishingStore interface {
 	GetQuestions() ([]models.Question, error)
 	GetDatasetProposalsForUser(id int64) ([]models.DatasetProposal, error)
 	GetDatasetProposalsForWorkspace(id int64) ([]models.DatasetProposal, error)
-	CreateDatasetProposal(proposal *models.DatasetProposal) (models.DatasetProposal, error)
+	CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error)
 }
 
 func getTableName(tableName string) string {
