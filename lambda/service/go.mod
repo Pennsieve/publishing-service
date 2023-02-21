@@ -10,7 +10,10 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 )
 
-require github.com/pennsieve/pennsieve-go-api v1.4.5
+require (
+	github.com/pennsieve/pennsieve-go-api v1.4.5
+	github.com/valyala/fastjson v1.6.4
+)
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.17.4 // indirect

@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/pennsieve/pennsieve-go-api/pkg/authorizer"
+	"github.com/pennsieve/publishing-service/api/dtos"
 	"github.com/pennsieve/publishing-service/api/service"
 	"github.com/pennsieve/publishing-service/api/store"
 	log "github.com/sirupsen/logrus"
+	"github.com/valyala/fastjson"
 	"os"
 	"regexp"
 )
@@ -79,21 +81,22 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 		case "GET":
 			if ok := authorized(); ok {
 				jsonBody, statusCode = handleGetUserDatasetProposals(claims, service)
+			} else {
+				jsonBody = nil
+				statusCode = 401
 			}
-			jsonBody = nil
-			statusCode = 401
-			//case "POST":
-			//	result, _ := handleCreateDatasetProposal(request, claims, service)
-			//	jsonBody, err = json.Marshal(result)
+		case "POST":
+			jsonBody, statusCode = handleCreateDatasetProposal(request, claims, service)
 		}
 	case "/publishing/submission":
 		switch request.RequestContext.HTTP.Method {
 		case "GET":
 			if ok := authorized(); ok {
 				jsonBody, statusCode = handleGetWorkspaceDatasetProposals(claims, service)
+			} else {
+				jsonBody = nil
+				statusCode = 401
 			}
-			jsonBody = nil
-			statusCode = 401
 		}
 	}
 
@@ -195,6 +198,29 @@ func handleGetWorkspaceDatasetProposals(claims *authorizer.Claims, service servi
 	return jsonBody, 200
 }
 
-//func handleCreateDatasetProposal() {
-//
-//}
+func handleCreateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	err := fastjson.Validate(request.Body)
+	if err != nil {
+		return nil, 500
+	}
+
+	// Unmarshal JSON into Dataset Proposal DTO
+	bytes := []byte(request.Body)
+	var res dtos.DatasetProposalDTO
+	json.Unmarshal(bytes, &res)
+
+	log.Println("handleCreateDatasetProposal() res: ", res)
+
+	result, err := service.CreateDatasetProposal(int(claims.UserClaim.Id), res)
+	if err != nil {
+		return nil, 500
+	}
+
+	jsonBody, err := json.Marshal(result)
+	if err != nil {
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
+	}
+
+	return jsonBody, 201
+}

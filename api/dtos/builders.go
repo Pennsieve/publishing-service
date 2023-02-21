@@ -20,6 +20,13 @@ func BuildSurveyDTO(survey models.Survey) SurveyDTO {
 	}
 }
 
+func BuildSurvey(survey SurveyDTO) models.Survey {
+	return models.Survey{
+		QuestionId: survey.QuestionId,
+		Response:   survey.Response,
+	}
+}
+
 // TODO: can we better abstract the type for questionMap?
 func BuildRepositoryDTO(repository models.Repository, questionMap map[int]QuestionDTO) RepositoryDTO {
 	// build list of selected Questions for the Repository
@@ -66,7 +73,6 @@ func BuildDatasetProposalDTO(proposal models.DatasetProposal) DatasetProposalDTO
 	}
 	return DatasetProposalDTO{
 		UserId:         proposal.UserId,
-		ProposalId:     proposal.ProposalId,
 		ProposalNodeId: proposal.ProposalNodeId,
 		Name:           proposal.Name,
 		Description:    proposal.Description,
