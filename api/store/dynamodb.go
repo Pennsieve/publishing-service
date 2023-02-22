@@ -182,7 +182,7 @@ func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal
 		log.Fatalln("store.CreateDatasetProposal() - attributevalue.MarshalMap() failed: ", err)
 		return nil, err
 	}
-	log.Println("store.CreateDatasetProposal() data: ", data)
+	log.WithFields(log.Fields{"data": fmt.Sprintf("%+v", data)}).Debug("store.CreateDatasetProposal()")
 
 	output, err := s.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
 		TableName:    aws.String(s.datasetProposalsTable),
@@ -193,7 +193,7 @@ func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal
 		log.Fatalln("store.CreateDatasetProposal() - s.db.PutItem() failed: ", err)
 		return nil, err
 	}
-	log.Println("store.CreateDatasetProposal() output: ", output)
+	log.WithFields(log.Fields{"output": fmt.Sprintf("%+v", output)}).Debug("store.CreateDatasetProposal()")
 
 	var item models.DatasetProposal
 	err = attributevalue.UnmarshalMap(output.Attributes, &item)
@@ -201,7 +201,7 @@ func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal
 		log.Fatalln("store.CreateDatasetProposal() - attributevalue.UnmarshalMap() failed: ", err)
 		return nil, err
 	}
-	log.Println("store.CreateDatasetProposal() item: ", item)
+	log.WithFields(log.Fields{"item": fmt.Sprintf("%+v", item)}).Debug("store.CreateDatasetProposal()")
 
 	return &item, nil
 }

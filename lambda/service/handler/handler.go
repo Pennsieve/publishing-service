@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/pennsieve/pennsieve-go-api/pkg/authorizer"
 	"github.com/pennsieve/publishing-service/api/dtos"
@@ -17,7 +18,7 @@ func init() {
 	log.SetFormatter(&log.JSONFormatter{})
 	ll, err := log.ParseLevel(os.Getenv("LOG_LEVEL"))
 	if err != nil {
-		log.SetLevel(log.InfoLevel)
+		log.SetLevel(log.DebugLevel)
 	} else {
 		log.SetLevel(ll)
 	}
@@ -210,15 +211,14 @@ func handleCreateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	bytes := []byte(request.Body)
 	var requestDTO dtos.DatasetProposalDTO
 	json.Unmarshal(bytes, &requestDTO)
-
-	log.Println("handleCreateDatasetProposal() requestDTO: ", requestDTO)
+	log.WithFields(log.Fields{"requestDTO": fmt.Sprintf("%+v", requestDTO)}).Debug("handleCreateDatasetProposal()")
 
 	resultDTO, err := service.CreateDatasetProposal(int(claims.UserClaim.Id), requestDTO)
 	if err != nil {
 		log.Fatalln("handleCreateDatasetProposal() - service.CreateDatasetProposal() failed: ", err)
 		return nil, 500
 	}
-	log.Println("handleCreateDatasetProposal() resultDTO: ", resultDTO)
+	log.WithFields(log.Fields{"resultDTO": fmt.Sprintf("%+v", resultDTO)}).Debug("handleCreateDatasetProposal()")
 
 	jsonBody, err := json.Marshal(resultDTO)
 	if err != nil {
