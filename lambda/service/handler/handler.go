@@ -54,8 +54,9 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 	r := regexp.MustCompile(`(?P<method>) (?P<pathKey>.*)`)
 	routeKeyParts := r.FindStringSubmatch(request.RouteKey)
 	routeKey := routeKeyParts[r.SubexpIndex("pathKey")]
+	httpMethod := request.RequestContext.HTTP.Method
 
-	log.Println("handleRequest() routeKey: ", routeKey)
+	log.WithFields(log.Fields{"method": httpMethod, "route": routeKey}).Info("handleRequest()")
 
 	// TODO: create function for each invocation
 	// TODO: each invocation function shall invoke the Service to process the request
@@ -68,17 +69,17 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 
 	switch routeKey {
 	case "/publishing/repositories":
-		switch request.RequestContext.HTTP.Method {
+		switch httpMethod {
 		case "GET":
 			jsonBody, statusCode = handleGetPublishingRepositories(service)
 		}
 	case "/publishing/questions":
-		switch request.RequestContext.HTTP.Method {
+		switch httpMethod {
 		case "GET":
 			jsonBody, statusCode = handleGetProposalQuestions(service)
 		}
 	case "/publishing/proposal":
-		switch request.RequestContext.HTTP.Method {
+		switch httpMethod {
 		case "GET":
 			if ok := authorized(); ok {
 				jsonBody, statusCode = handleGetUserDatasetProposals(claims, service)
@@ -90,7 +91,7 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 			jsonBody, statusCode = handleCreateDatasetProposal(request, claims, service)
 		}
 	case "/publishing/submission":
-		switch request.RequestContext.HTTP.Method {
+		switch httpMethod {
 		case "GET":
 			if ok := authorized(); ok {
 				jsonBody, statusCode = handleGetWorkspaceDatasetProposals(claims, service)
@@ -161,18 +162,20 @@ func handleGetProposalQuestions(service service.PublishingService) ([]byte, int)
 }
 
 func handleGetUserDatasetProposals(claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	log.Info("handleGetUserDatasetProposals()")
 	// get user id from User Claim
-	id := claims.UserClaim.Id
+	userId := claims.UserClaim.Id
+	log.WithFields(log.Fields{"userId": userId}).Debug("handleGetUserDatasetProposals()")
 
-	result, err := service.GetDatasetProposalsForUser(id)
+	result, err := service.GetDatasetProposalsForUser(userId)
 	if err != nil {
-		// TODO: provide a better response than nil on a 500
+		log.Error("service.GetDatasetProposalsForUser() failed: ", err)
 		return nil, 500
 	}
 
 	jsonBody, err := json.Marshal(result)
 	if err != nil {
-		// TODO: provide a better response than nil on a 500
+		log.Error("json.Marshal() failed: ", err)
 		return nil, 500
 	}
 
