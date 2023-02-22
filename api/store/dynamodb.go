@@ -182,7 +182,7 @@ func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal
 		log.Fatalln("store.CreateDatasetProposal() - attributevalue.MarshalMap() failed: ", err)
 		return nil, err
 	}
-	log.Println("store.CreateDatasetProposal() data: ", data)
+	log.Println("store.CreateDatasetProposal() data: %#v", data)
 
 	output, err := s.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
 		TableName:    aws.String(s.datasetProposalsTable),
@@ -193,7 +193,7 @@ func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal
 		log.Fatalln("store.CreateDatasetProposal() - s.db.PutItem() failed: ", err)
 		return nil, err
 	}
-	log.Println("store.CreateDatasetProposal() output: ", output)
+	log.Println("store.CreateDatasetProposal() output: %#v", output)
 
 	var item models.DatasetProposal
 	err = attributevalue.UnmarshalMap(output.Attributes, &item)
@@ -201,7 +201,7 @@ func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal
 		log.Fatalln("store.CreateDatasetProposal() - attributevalue.UnmarshalMap() failed: ", err)
 		return nil, err
 	}
-	log.Println("store.CreateDatasetProposal() item: ", item)
+	log.Println("store.CreateDatasetProposal() item: %#v", item)
 
 	return &item, nil
 }

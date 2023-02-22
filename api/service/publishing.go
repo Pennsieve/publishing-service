@@ -125,7 +125,7 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		Status:         "DRAFT",
 		Survey:         survey,
 	}
-	log.Println("service.CreateDatasetProposal() proposal: ", proposal)
+	log.Println("service.CreateDatasetProposal() proposal: %#v", proposal)
 
 	result, err := s.store.CreateDatasetProposal(proposal)
 	if err != nil {

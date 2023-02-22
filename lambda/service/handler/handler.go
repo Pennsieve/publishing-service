@@ -211,14 +211,14 @@ func handleCreateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	var requestDTO dtos.DatasetProposalDTO
 	json.Unmarshal(bytes, &requestDTO)
 
-	log.Println("handleCreateDatasetProposal() requestDTO: ", requestDTO)
+	log.Println("handleCreateDatasetProposal() requestDTO: %#v", requestDTO)
 
 	resultDTO, err := service.CreateDatasetProposal(int(claims.UserClaim.Id), requestDTO)
 	if err != nil {
 		log.Fatalln("handleCreateDatasetProposal() - service.CreateDatasetProposal() failed: ", err)
 		return nil, 500
 	}
-	log.Println("handleCreateDatasetProposal() resultDTO: ", resultDTO)
+	log.Println("handleCreateDatasetProposal() resultDTO: %#v", resultDTO)
 
 	jsonBody, err := json.Marshal(resultDTO)
 	if err != nil {
