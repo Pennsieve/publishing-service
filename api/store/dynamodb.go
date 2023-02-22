@@ -151,7 +151,7 @@ func (s *publishingStore) GetQuestions() ([]models.Question, error) {
 func (s *publishingStore) GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error) {
 	log.WithFields(log.Fields{"userId": userId}).Info("store.GetDatasetProposalsForUser()")
 	var userIdString string
-	userIdString = string(userId)
+	userIdString = fmt.Sprintf("%d", userId)
 	log.Debug("userIdString: ", userIdString)
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
