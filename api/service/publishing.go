@@ -86,11 +86,12 @@ func proposalDTOsList(proposals []models.DatasetProposal) []dtos.DatasetProposal
 	return proposalDTOs
 }
 
-func (s *publishingService) GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error) {
-	log.Println("GetProposalQuestions()")
+func (s *publishingService) GetDatasetProposalsForUser(userId int64) ([]dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"userId": userId}).Info("service.GetProposalQuestions()")
 
-	proposals, err := s.store.GetDatasetProposalsForUser(id)
+	proposals, err := s.store.GetDatasetProposalsForUser(userId)
 	if err != nil {
+		log.Error("store.GetDatasetProposalsForUser() failed: ", err)
 		return nil, err
 	}
 
