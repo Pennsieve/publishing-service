@@ -17,7 +17,7 @@ type PublishingStore interface {
 	GetRepositories() ([]models.Repository, error)
 	GetQuestions() ([]models.Question, error)
 	GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error)
-	GetDatasetProposalsForWorkspace(id int64) ([]models.DatasetProposal, error)
+	GetDatasetProposalsForWorkspace(workspaceId int64) ([]models.DatasetProposal, error)
 	CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error)
 }
 
@@ -50,22 +50,21 @@ type publishingStore struct {
 	datasetProposalsTable string
 }
 
-func (s *publishingStore) GetDatasetProposals() {
-	//TODO implement me
-	panic("implement me")
+func int64ToString(i int64) string {
+	return fmt.Sprintf("%d", i)
 }
 
 func scan(client *dynamodb.Client, tableName string) (*dynamodb.ScanOutput, error) {
-	log.Println("scan() tableName: ", tableName)
+	log.WithFields(log.Fields{"tableName": tableName}).Debug("scan()")
 
 	scanInput := dynamodb.ScanInput{
 		TableName: aws.String(tableName),
 	}
-	log.Println("scan() scanInput: ", scanInput)
+	log.WithFields(log.Fields{"scanInput": fmt.Sprintf("%+v", scanInput)}).Debug("scan()")
 
 	result, err := client.Scan(context.TODO(), &scanInput)
 	if err != nil {
-		log.Fatalln("scan() err: ", err)
+		log.Error("scan() err: ", err)
 		return nil, err
 	}
 
@@ -98,20 +97,20 @@ func transform[T models.Repository | models.Question | models.DatasetProposal](i
 }
 
 func fetch[T models.Repository | models.Question](client *dynamodb.Client, tableName string) ([]T, error) {
-	log.Println("fetch() tableName: ", tableName)
+	log.WithFields(log.Fields{"tableName": tableName}).Debug("fetch()")
 	var err error
 
 	// get all Items from the table via Scan operation
 	output, err := scan(client, tableName)
 	if err != nil {
-		log.Fatalln("fetch() - scan() err: ", err)
+		log.Error("fetch() - scan() err: ", err)
 		return nil, err
 	}
 
 	// transform each Item in output from DynamoDB to type T
 	results, err := transform[T](output.Items)
 	if err != nil {
-		log.Fatalln("fetch() - transform() err: ", err)
+		log.Error("fetch() - transform() err: ", err)
 		return nil, err
 	}
 
@@ -124,14 +123,14 @@ func find[T models.DatasetProposal](client *dynamodb.Client, queryInput *dynamod
 
 	output, err := query(client, queryInput)
 	if err != nil {
-		log.Fatalln("find() - query() err: ", err)
+		log.Error("find() - query() err: ", err)
 		return nil, err
 	}
 
 	// transform each Item in output from DynamoDB to type T
 	results, err := transform[T](output.Items)
 	if err != nil {
-		log.Fatalln("find() - transform() err: ", err)
+		log.Error("find() - transform() err: ", err)
 		return nil, err
 	}
 
@@ -139,39 +138,39 @@ func find[T models.DatasetProposal](client *dynamodb.Client, queryInput *dynamod
 }
 
 func (s *publishingStore) GetRepositories() ([]models.Repository, error) {
-	log.Println("GetRepositories()")
+	log.Info("store.GetRepositories()")
 	return fetch[models.Repository](s.db, s.repositoriesTable)
 }
 
 func (s *publishingStore) GetQuestions() ([]models.Question, error) {
-	log.Println("GetQuestions()")
+	log.Info("store.GetQuestions()")
 	return fetch[models.Question](s.db, s.questionsTable)
 }
 
 func (s *publishingStore) GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error) {
 	log.WithFields(log.Fields{"userId": userId}).Info("store.GetDatasetProposalsForUser()")
-	var userIdString string
-	userIdString = fmt.Sprintf("%d", userId)
-	log.Debug("userIdString: ", userIdString)
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
 		KeyConditionExpression: aws.String("UserId = :userId"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":userId": &types.AttributeValueMemberN{
-				Value: userIdString,
+				Value: int64ToString(userId),
 			},
 		},
 	}
 	return find[models.DatasetProposal](s.db, &queryInput)
 }
 
-func (s *publishingStore) GetDatasetProposalsForWorkspace(id int64) ([]models.DatasetProposal, error) {
+func (s *publishingStore) GetDatasetProposalsForWorkspace(workspaceId int64) ([]models.DatasetProposal, error) {
+	log.WithFields(log.Fields{"workspaceId": workspaceId}).Info("store.GetDatasetProposalsForWorkspace()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
 		IndexName:              aws.String("RepositoryIdIndex"),
-		KeyConditionExpression: aws.String("RepositoryId = :id"),
+		KeyConditionExpression: aws.String("RepositoryId = :workspaceId"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":id": &types.AttributeValueMemberN{Value: string(id)},
+			":workspaceId": &types.AttributeValueMemberN{
+				Value: int64ToString(workspaceId),
+			},
 		},
 		Select: "ALL_PROJECTED_ATTRIBUTES",
 	}
@@ -179,7 +178,7 @@ func (s *publishingStore) GetDatasetProposalsForWorkspace(id int64) ([]models.Da
 }
 
 func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
-	log.Println("store.CreateDatasetProposal()")
+	log.Info("store.CreateDatasetProposal()")
 
 	var err error
 	data, err := attributevalue.MarshalMap(proposal)
