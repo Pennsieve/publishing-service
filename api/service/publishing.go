@@ -109,6 +109,8 @@ func (s *publishingService) GetDatasetProposalsForWorkspace(id int64) ([]dtos.Da
 }
 
 func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
+	log.Println("service.CreateDatasetProposal()")
+
 	var survey []models.Survey
 	for i := 0; i < len(dto.Survey); i++ {
 		survey = append(survey, dtos.BuildSurvey(dto.Survey[i]))
@@ -123,9 +125,11 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		Status:         "DRAFT",
 		Survey:         survey,
 	}
+	log.Println("service.CreateDatasetProposal() proposal: ", proposal)
 
 	result, err := s.store.CreateDatasetProposal(proposal)
 	if err != nil {
+		log.Fatalln("service.CreateDatasetProposal() - store.CreateDatasetProposal() failed: ", err)
 		return nil, err
 	}
 

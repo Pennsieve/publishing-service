@@ -174,11 +174,15 @@ func (s *publishingStore) GetDatasetProposalsForWorkspace(id int64) ([]models.Da
 }
 
 func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
+	log.Println("store.CreateDatasetProposal()")
+
 	var err error
 	data, err := attributevalue.MarshalMap(proposal)
 	if err != nil {
+		log.Fatalln("store.CreateDatasetProposal() - attributevalue.MarshalMap() failed: ", err)
 		return nil, err
 	}
+	log.Println("store.CreateDatasetProposal() data: ", data)
 
 	output, err := s.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
 		TableName:    aws.String(s.datasetProposalsTable),
@@ -186,14 +190,18 @@ func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal
 		ReturnValues: "ALL_OLD",
 	})
 	if err != nil {
+		log.Fatalln("store.CreateDatasetProposal() - s.db.PutItem() failed: ", err)
 		return nil, err
 	}
+	log.Println("store.CreateDatasetProposal() output: ", output)
 
 	var item models.DatasetProposal
 	err = attributevalue.UnmarshalMap(output.Attributes, &item)
 	if err != nil {
+		log.Fatalln("store.CreateDatasetProposal() - attributevalue.UnmarshalMap() failed: ", err)
 		return nil, err
 	}
+	log.Println("store.CreateDatasetProposal() item: ", item)
 
 	return &item, nil
 }
