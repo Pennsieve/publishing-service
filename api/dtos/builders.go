@@ -41,13 +41,13 @@ func BuildRepositoryDTO(repository models.Repository, questionMap map[int]Questi
 	overviewDocument, _ := presigner.GetObject(
 		repository.OverviewDocument.S3Bucket,
 		repository.OverviewDocument.S3Key,
-		3600,
+		12*3600, // 12 hours
 	)
 
 	logoFile, _ := presigner.GetObject(
 		repository.LogoFile.S3Bucket,
 		repository.LogoFile.S3Key,
-		3600,
+		12*3600, // 12 hours
 	)
 
 	return RepositoryDTO{
