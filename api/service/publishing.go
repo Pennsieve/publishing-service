@@ -110,6 +110,8 @@ func (s *publishingService) GetDatasetProposalsForWorkspace(id int64) ([]dtos.Da
 	return proposalDTOsList(proposals), nil
 }
 
+// TODO: validate RepositoryId, ensure it is in Repositories table
+// TODO: move generating ProposalNodeId string elsewhere (pennsieve-core?)
 func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
 	log.Println("service.CreateDatasetProposal()")
 
