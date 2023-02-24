@@ -7,6 +7,7 @@ import (
 	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/store"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 type PublishingService interface {
@@ -109,6 +110,8 @@ func (s *publishingService) GetDatasetProposalsForWorkspace(id int64) ([]dtos.Da
 	return proposalDTOsList(proposals), nil
 }
 
+// TODO: validate RepositoryId, ensure it is in Repositories table
+// TODO: move generating ProposalNodeId string elsewhere (pennsieve-core?)
 func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
 	log.Println("service.CreateDatasetProposal()")
 
@@ -116,6 +119,8 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 	for i := 0; i < len(dto.Survey); i++ {
 		survey = append(survey, dtos.BuildSurvey(dto.Survey[i]))
 	}
+
+	currentTime := time.Now().Unix()
 
 	proposal := &models.DatasetProposal{
 		UserId:         userId,
@@ -125,6 +130,8 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		RepositoryId:   dto.RepositoryId,
 		Status:         "DRAFT",
 		Survey:         survey,
+		CreatedAt:      currentTime,
+		UpdatedAt:      currentTime,
 	}
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.CreateDatasetProposal()")
 

@@ -82,4 +82,18 @@ data "aws_iam_policy_document" "publishing_service_iam_policy_document" {
 
   }
 
+  statement {
+    sid = "PublishingServiceLambdaS3Permissions"
+    effect = "Allow"
+
+    actions = [
+      "s3:GetObject"
+    ]
+
+    resources = [
+      data.terraform_remote_state.platform_infrastructure.outputs.dataset_assets_bucket_arn,
+      "${data.terraform_remote_state.platform_infrastructure.outputs.dataset_assets_bucket_arn}/*"
+    ]
+  }
+
 }
