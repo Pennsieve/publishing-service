@@ -7,6 +7,7 @@ import (
 	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/store"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 type PublishingService interface {
@@ -117,6 +118,8 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		survey = append(survey, dtos.BuildSurvey(dto.Survey[i]))
 	}
 
+	currentTime := time.Now().Unix()
+
 	proposal := &models.DatasetProposal{
 		UserId:         userId,
 		ProposalNodeId: fmt.Sprintf("%s:%s:%s", "N", "proposal", uuid.NewString()),
@@ -125,6 +128,8 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		RepositoryId:   dto.RepositoryId,
 		Status:         "DRAFT",
 		Survey:         survey,
+		CreatedAt:      currentTime,
+		UpdatedAt:      currentTime,
 	}
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.CreateDatasetProposal()")
 
