@@ -136,12 +136,12 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 	}
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.CreateDatasetProposal()")
 
-	result, err := s.store.CreateDatasetProposal(proposal)
+	_, err := s.store.CreateDatasetProposal(proposal)
 	if err != nil {
 		log.Fatalln("service.CreateDatasetProposal() - store.CreateDatasetProposal() failed: ", err)
 		return nil, err
 	}
 
-	dtoResult := dtos.BuildDatasetProposalDTO(*result)
+	dtoResult := dtos.BuildDatasetProposalDTO(*proposal)
 	return &dtoResult, nil
 }
