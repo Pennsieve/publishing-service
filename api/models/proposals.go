@@ -15,6 +15,6 @@ type DatasetProposal struct {
 	DatasetNodeId      string   `dynamodbav:"DatasetNodeId"`
 	Status             string   `dynamodbav:"Status"`
 	Survey             []Survey `dynamodbav:"Survey"`
-	CreatedAt          int      `dynamodbav:"CreatedAt"`
-	UpdatedAt          int      `dynamodbav:"UpdatedAt"`
+	CreatedAt          int64    `dynamodbav:"CreatedAt"`
+	UpdatedAt          int64    `dynamodbav:"UpdatedAt"`
 }
