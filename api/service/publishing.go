@@ -123,15 +123,16 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 	currentTime := time.Now().Unix()
 
 	proposal := &models.DatasetProposal{
-		UserId:         userId,
-		ProposalNodeId: fmt.Sprintf("%s:%s:%s", "N", "proposal", uuid.NewString()),
-		Name:           dto.Name,
-		Description:    dto.Description,
-		RepositoryId:   dto.RepositoryId,
-		Status:         "DRAFT",
-		Survey:         survey,
-		CreatedAt:      currentTime,
-		UpdatedAt:      currentTime,
+		UserId:             userId,
+		ProposalNodeId:     fmt.Sprintf("%s:%s:%s", "N", "proposal", uuid.NewString()),
+		Name:               dto.Name,
+		Description:        dto.Description,
+		RepositoryId:       dto.RepositoryId,
+		OrganizationNodeId: dto.OrganizationNodeId,
+		Status:             "DRAFT",
+		Survey:             survey,
+		CreatedAt:          currentTime,
+		UpdatedAt:          currentTime,
 	}
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.CreateDatasetProposal()")
 
