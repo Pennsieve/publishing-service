@@ -15,6 +15,6 @@ type DatasetProposalDTO struct {
 	DatasetNodeId      string      `json:"DatasetNodeId"`
 	Status             string      `json:"Status"`
 	Survey             []SurveyDTO `json:"Survey"`
-	CreatedAt          int64       `json:"CreatedAt"`
-	UpdatedAt          int64       `json:"UpdatedAt"`
+	CreatedAt          int         `json:"CreatedAt"`
+	UpdatedAt          int         `json:"UpdatedAt"`
 }
