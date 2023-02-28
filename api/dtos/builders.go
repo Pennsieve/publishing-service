@@ -1,8 +1,11 @@
 package dtos
 
 import (
+	"fmt"
+	"github.com/google/uuid"
 	"github.com/pennsieve/publishing-service/api/aws/s3"
 	"github.com/pennsieve/publishing-service/api/models"
+	"time"
 )
 
 func BuildQuestionDTO(question models.Question) QuestionDTO {
@@ -80,4 +83,28 @@ func BuildDatasetProposalDTO(proposal models.DatasetProposal) DatasetProposalDTO
 		Status:         proposal.Status,
 		Survey:         surveyDTOs,
 	}
+}
+
+func BuildDatasetProposal(dto DatasetProposalDTO) *models.DatasetProposal {
+	var survey []models.Survey
+	for i := 0; i < len(dto.Survey); i++ {
+		survey = append(survey, BuildSurvey(dto.Survey[i]))
+	}
+
+	currentTime := time.Now().Unix()
+
+	proposal := &models.DatasetProposal{
+		UserId:             dto.UserId,
+		ProposalNodeId:     fmt.Sprintf("%s:%s:%s", "N", "proposal", uuid.NewString()),
+		Name:               dto.Name,
+		Description:        dto.Description,
+		RepositoryId:       dto.RepositoryId,
+		OrganizationNodeId: dto.OrganizationNodeId,
+		Status:             "DRAFT",
+		Survey:             survey,
+		CreatedAt:          currentTime,
+		UpdatedAt:          currentTime,
+	}
+
+	return proposal
 }

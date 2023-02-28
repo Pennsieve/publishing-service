@@ -16,9 +16,12 @@ import (
 type PublishingStore interface {
 	GetRepositories() ([]models.Repository, error)
 	GetQuestions() ([]models.Question, error)
+	GetDatasetProposal(userId int, nodeId string) (models.DatasetProposal, error)
 	GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error)
 	GetDatasetProposalsForWorkspace(workspaceId int64) ([]models.DatasetProposal, error)
 	CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error)
+	UpdateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error)
+	DeleteDatasetProposal(proposal *models.DatasetProposal) error
 }
 
 func getTableName(tableName string) string {
@@ -48,6 +51,10 @@ type publishingStore struct {
 	repositoriesTable     string
 	questionsTable        string
 	datasetProposalsTable string
+}
+
+func intToString(i int) string {
+	return fmt.Sprintf("%d", i)
 }
 
 func int64ToString(i int64) string {
@@ -137,6 +144,43 @@ func find[T models.DatasetProposal](client *dynamodb.Client, queryInput *dynamod
 	return results, nil
 }
 
+func get[T models.DatasetProposal](client *dynamodb.Client, queryInput *dynamodb.QueryInput) (T, error) {
+	log.WithFields(log.Fields{"queryInput": fmt.Sprintf("%#v", queryInput)}).Debug("get()")
+	results, err := find[T](client, queryInput)
+	if err != nil {
+		log.Error("get() - find() err: ", err)
+		return T{}, err
+	}
+
+	if len(results) == 0 {
+		return T{}, fmt.Errorf("item not found")
+	}
+
+	if len(results) > 1 {
+		return T{}, fmt.Errorf("singleton get returned more than one item")
+	}
+
+	return results[0], nil
+}
+
+// TODO: make this function a generic ~> item T[]
+func store(client *dynamodb.Client, table string, item *models.DatasetProposal) (*dynamodb.PutItemOutput, error) {
+	log.WithFields(log.Fields{"table": table, "item": fmt.Sprintf("%#v", item)}).Debug("store()")
+
+	var err error
+	data, err := attributevalue.MarshalMap(item)
+	if err != nil {
+		log.Fatalln("store.CreateDatasetProposal() - attributevalue.MarshalMap() failed: ", err)
+		return nil, err
+	}
+	log.WithFields(log.Fields{"data": fmt.Sprintf("%+v", data)}).Debug("store.CreateDatasetProposal()")
+
+	return client.PutItem(context.TODO(), &dynamodb.PutItemInput{
+		TableName: aws.String(table),
+		Item:      data,
+	})
+}
+
 func (s *publishingStore) GetRepositories() ([]models.Repository, error) {
 	log.Info("store.GetRepositories()")
 	return fetch[models.Repository](s.db, s.repositoriesTable)
@@ -145,6 +189,23 @@ func (s *publishingStore) GetRepositories() ([]models.Repository, error) {
 func (s *publishingStore) GetQuestions() ([]models.Question, error) {
 	log.Info("store.GetQuestions()")
 	return fetch[models.Question](s.db, s.questionsTable)
+}
+
+func (s *publishingStore) GetDatasetProposal(userId int, nodeId string) (models.DatasetProposal, error) {
+	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("store.GetDatasetProposal()")
+	queryInput := dynamodb.QueryInput{
+		TableName:              aws.String(s.datasetProposalsTable),
+		KeyConditionExpression: aws.String("UserId = :userId AND ProposalNodeId = :nodeId"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":userId": &types.AttributeValueMemberN{
+				Value: intToString(userId),
+			},
+			":nodeId": &types.AttributeValueMemberS{
+				Value: nodeId,
+			},
+		},
+	}
+	return get[models.DatasetProposal](s.db, &queryInput)
 }
 
 func (s *publishingStore) GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error) {
@@ -180,23 +241,49 @@ func (s *publishingStore) GetDatasetProposalsForWorkspace(workspaceId int64) ([]
 func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
 	log.Info("store.CreateDatasetProposal()")
 
-	var err error
-	data, err := attributevalue.MarshalMap(proposal)
+	result, err := store(s.db, s.datasetProposalsTable, proposal)
 	if err != nil {
-		log.Fatalln("store.CreateDatasetProposal() - attributevalue.MarshalMap() failed: ", err)
+		log.Fatalln("store.CreateDatasetProposal() - store() failed: ", err)
 		return nil, err
 	}
-	log.WithFields(log.Fields{"data": fmt.Sprintf("%+v", data)}).Debug("store.CreateDatasetProposal()")
-
-	output, err := s.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
-		TableName: aws.String(s.datasetProposalsTable),
-		Item:      data,
-	})
-	if err != nil {
-		log.Fatalln("store.CreateDatasetProposal() - s.db.PutItem() failed: ", err)
-		return nil, err
-	}
-	log.WithFields(log.Fields{"output": fmt.Sprintf("%+v", output)}).Debug("store.CreateDatasetProposal()")
+	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("store.CreateDatasetProposal()")
 
 	return proposal, nil
+}
+
+func (s *publishingStore) UpdateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
+	log.Info("store.UpdateDatasetProposal()")
+
+	result, err := store(s.db, s.datasetProposalsTable, proposal)
+	if err != nil {
+		log.Fatalln("store.UpdateDatasetProposal() - store() failed: ", err)
+		return nil, err
+	}
+	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("store.UpdateDatasetProposal()")
+
+	return proposal, nil
+}
+
+func (s *publishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal) error {
+	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Info("store.DeleteDatasetProposal()")
+
+	var err error
+	proposalKey, err := attributevalue.MarshalMap(proposal)
+	if err != nil {
+		log.Fatalln("store.DeleteDatasetProposal() - MarshalMap() failed: ", err)
+		return err
+	}
+	log.WithFields(log.Fields{"proposalKey": fmt.Sprintf("%+v", proposalKey)}).Debug("store.DeleteDatasetProposal()")
+
+	_, err = s.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+		TableName: aws.String(s.datasetProposalsTable),
+		Key:       proposalKey,
+	})
+
+	if err != nil {
+		log.Fatalln("store.DeleteDatasetProposal() - DeleteItem() failed: ", err)
+		return err
+	}
+
+	return nil
 }

@@ -89,6 +89,10 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 			}
 		case "POST":
 			jsonBody, statusCode = handleCreateDatasetProposal(request, claims, service)
+		case "PUT":
+			jsonBody, statusCode = handleUpdateDatasetProposal(request, claims, service)
+		case "DELETE":
+			jsonBody, statusCode = handleDeleteDatasetProposal(request, claims, service)
 		}
 	case "/publishing/submission":
 		switch httpMethod {
@@ -231,4 +235,82 @@ func handleCreateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	}
 
 	return jsonBody, 201
+}
+
+func handleUpdateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	log.WithFields(log.Fields{"request.body": request.Body}).Debug("handleUpdateDatasetProposal()")
+
+	var err error
+
+	// validate JSON
+	err = fastjson.Validate(request.Body)
+	if err != nil {
+		log.WithFields(log.Fields{"request.Body": request.Body}).Error("request body validation failed: ", err)
+		return nil, 400
+	}
+
+	// Unmarshal JSON into Dataset Proposal DTO
+	bytes := []byte(request.Body)
+	var requestDTO dtos.DatasetProposalDTO
+	json.Unmarshal(bytes, &requestDTO)
+	log.WithFields(log.Fields{"requestDTO": fmt.Sprintf("%+v", requestDTO)}).Debug("handleUpdateDatasetProposal()")
+
+	// check that ProposalNodeId was provided
+	if requestDTO.ProposalNodeId == "" {
+		log.WithFields(log.Fields{}).Error("missing required field(s): ProposalNodeId")
+		return nil, 400
+	}
+
+	// get Proposal by UserId and ProposalNodeId
+	_, err = service.GetDatasetProposal(requestDTO.UserId, requestDTO.ProposalNodeId)
+	if err != nil {
+		log.WithFields(log.Fields{"UserId": requestDTO.UserId, "ProposalNodeId": requestDTO.ProposalNodeId}).Error("Dataset Proposal does not exist")
+		return nil, 404
+	}
+
+	// if it exists, then invoke update
+	resultDTO, err := service.UpdateDatasetProposal(int(claims.UserClaim.Id), requestDTO)
+	if err != nil {
+		log.Error("service.UpdateDatasetProposal() failed: ", err)
+		return nil, 500
+	}
+	log.WithFields(log.Fields{"resultDTO": fmt.Sprintf("%+v", resultDTO)}).Debug("handleCreateDatasetProposal()")
+
+	jsonBody, err := json.Marshal(resultDTO)
+	if err != nil {
+		log.Error("json.Marshal() failed: ", err)
+		return nil, 500
+	}
+
+	return jsonBody, 200
+}
+
+func handleDeleteDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	log.WithFields(log.Fields{}).Debug("handleDeleteDatasetProposal()")
+
+	var err error
+	var nodeId string
+	var found bool
+
+	// get ProposalNodeId from request query parameters
+	queryParams := request.QueryStringParameters
+	if nodeId, found = queryParams["proposal_node_id"]; !found {
+		return nil, 400
+	}
+
+	userId := int(claims.UserClaim.Id)
+
+	_, err = service.GetDatasetProposal(userId, nodeId)
+	if err != nil {
+		// probably not found
+		return nil, 404
+	}
+
+	_, err = service.DeleteDatasetProposal(userId, nodeId)
+	if err != nil {
+		// TODO: log an error message
+		return nil, 500
+	}
+
+	return nil, 200
 }

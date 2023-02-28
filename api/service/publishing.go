@@ -13,9 +13,12 @@ import (
 type PublishingService interface {
 	GetPublishingRepositories() ([]dtos.RepositoryDTO, error)
 	GetProposalQuestions() ([]dtos.QuestionDTO, error)
+	GetDatasetProposal(userId int, nodeId string) (dtos.DatasetProposalDTO, error)
 	GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error)
 	GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error)
 	CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
+	UpdateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
+	DeleteDatasetProposal(userId int, proposalNodeId string) (bool, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
@@ -87,8 +90,22 @@ func proposalDTOsList(proposals []models.DatasetProposal) []dtos.DatasetProposal
 	return proposalDTOs
 }
 
+func (s *publishingService) GetDatasetProposal(userId int, nodeId string) (dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.GetDatasetProposal()")
+
+	proposal, err := s.store.GetDatasetProposal(userId, nodeId)
+	if err != nil {
+		// TODO: fix this, we should not return anything for the value
+		return dtos.DatasetProposalDTO{}, err
+	}
+
+	proposalDTO := dtos.BuildDatasetProposalDTO(proposal)
+
+	return proposalDTO, nil
+}
+
 func (s *publishingService) GetDatasetProposalsForUser(userId int64) ([]dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"userId": userId}).Info("service.GetProposalQuestions()")
+	log.WithFields(log.Fields{"userId": userId}).Info("service.GetDatasetProposalsForUser()")
 
 	proposals, err := s.store.GetDatasetProposalsForUser(userId)
 	if err != nil {
@@ -100,7 +117,7 @@ func (s *publishingService) GetDatasetProposalsForUser(userId int64) ([]dtos.Dat
 }
 
 func (s *publishingService) GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error) {
-	log.Println("GetProposalQuestions()")
+	log.WithFields(log.Fields{"id": id}).Info("service.GetDatasetProposalsForWorkspace()")
 
 	proposals, err := s.store.GetDatasetProposalsForWorkspace(id)
 	if err != nil {
@@ -112,6 +129,7 @@ func (s *publishingService) GetDatasetProposalsForWorkspace(id int64) ([]dtos.Da
 
 // TODO: validate RepositoryId, ensure it is in Repositories table
 // TODO: move generating ProposalNodeId string elsewhere (pennsieve-core?)
+// TODO: refactor Create..() and Update..() to use common code
 func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
 	log.Println("service.CreateDatasetProposal()")
 
@@ -144,4 +162,55 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 
 	dtoResult := dtos.BuildDatasetProposalDTO(*proposal)
 	return &dtoResult, nil
+}
+
+func (s *publishingService) UpdateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
+	log.Println("service.UpdateDatasetProposal()")
+
+	var survey []models.Survey
+	for i := 0; i < len(dto.Survey); i++ {
+		survey = append(survey, dtos.BuildSurvey(dto.Survey[i]))
+	}
+
+	currentTime := time.Now().Unix()
+
+	proposal := &models.DatasetProposal{
+		UserId:             userId,
+		ProposalNodeId:     dto.ProposalNodeId,
+		Name:               dto.Name,
+		Description:        dto.Description,
+		RepositoryId:       dto.RepositoryId,
+		OrganizationNodeId: dto.OrganizationNodeId,
+		Status:             dto.Status,
+		Survey:             survey,
+		CreatedAt:          dto.CreatedAt,
+		UpdatedAt:          currentTime,
+	}
+	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.UpdateDatasetProposal()")
+
+	_, err := s.store.UpdateDatasetProposal(proposal)
+	if err != nil {
+		log.Fatalln("store.UpdateDatasetProposal() failed: ", err)
+		return nil, err
+	}
+
+	dtoResult := dtos.BuildDatasetProposalDTO(*proposal)
+	return &dtoResult, nil
+}
+
+func (s *publishingService) DeleteDatasetProposal(userId int, nodeId string) (bool, error) {
+	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.DeleteDatasetProposal()")
+
+	proposal := &models.DatasetProposal{
+		UserId:         userId,
+		ProposalNodeId: nodeId,
+	}
+
+	err := s.store.DeleteDatasetProposal(proposal)
+	if err != nil {
+		log.Fatalln("store.DeleteDatasetProposal() failed: ", err)
+		return false, err
+	}
+
+	return true, nil
 }
