@@ -66,6 +66,7 @@ data "aws_iam_policy_document" "publishing_service_iam_policy_document" {
       "dynamodb:BatchGetItem",
       "dynamodb:GetItem",
       "dynamodb:PutItem",
+      "dynamodb:DeleteItem",
       "dynamodb:Query",
       "dynamodb:Scan",
       "dynamodb:PartiQLSelect"
