@@ -300,13 +300,14 @@ func handleDeleteDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 
 	userId := int(claims.UserClaim.Id)
 
-	_, err = service.GetDatasetProposal(userId, nodeId)
+	proposal, err := service.GetDatasetProposal(userId, nodeId)
 	if err != nil {
 		// probably not found
 		return nil, 404
 	}
+	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("handleDeleteDatasetProposal() found proposal")
 
-	_, err = service.DeleteDatasetProposal(userId, nodeId)
+	_, err = service.DeleteDatasetProposal(proposal)
 	if err != nil {
 		// TODO: log an error message
 		return nil, 500
