@@ -149,15 +149,15 @@ func get[T models.DatasetProposal](client *dynamodb.Client, queryInput *dynamodb
 	results, err := find[T](client, queryInput)
 	if err != nil {
 		log.Error("get() - find() err: ", err)
-		return nil, err
+		return T{}, err
 	}
 
 	if len(results) == 0 {
-		return nil, fmt.Errorf("item not found")
+		return T{}, fmt.Errorf("item not found")
 	}
 
 	if len(results) > 1 {
-		return nil, fmt.Errorf("singleton get returned more than one item")
+		return T{}, fmt.Errorf("singleton get returned more than one item")
 	}
 
 	return results[0], nil
