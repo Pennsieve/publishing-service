@@ -18,3 +18,8 @@ type DatasetProposal struct {
 	CreatedAt          int64    `dynamodbav:"CreatedAt"`
 	UpdatedAt          int64    `dynamodbav:"UpdatedAt"`
 }
+
+type DatasetProposalKey struct {
+	UserId         int    `json:"UserId"`
+	ProposalNodeId string `json:"ProposalNodeId"`
+}

@@ -268,7 +268,10 @@ func (s *publishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Info("store.DeleteDatasetProposal()")
 
 	var err error
-	proposalKey, err := attributevalue.MarshalMap(proposal)
+	proposalKey, err := attributevalue.MarshalMap(models.DatasetProposalKey{
+		UserId:         proposal.UserId,
+		ProposalNodeId: proposal.ProposalNodeId,
+	})
 	if err != nil {
 		log.Fatalln("store.DeleteDatasetProposal() - MarshalMap() failed: ", err)
 		return err

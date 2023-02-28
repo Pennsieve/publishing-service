@@ -18,7 +18,7 @@ type PublishingService interface {
 	GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error)
 	CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	UpdateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
-	DeleteDatasetProposal(userId int, proposalNodeId string) (bool, error)
+	DeleteDatasetProposal(proposal dtos.DatasetProposalDTO) (bool, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
@@ -198,13 +198,10 @@ func (s *publishingService) UpdateDatasetProposal(userId int, dto dtos.DatasetPr
 	return &dtoResult, nil
 }
 
-func (s *publishingService) DeleteDatasetProposal(userId int, nodeId string) (bool, error) {
-	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.DeleteDatasetProposal()")
+func (s *publishingService) DeleteDatasetProposal(proposalDTO dtos.DatasetProposalDTO) (bool, error) {
+	log.WithFields(log.Fields{"proposalDTO": fmt.Sprintf("%+v", proposalDTO)}).Info("service.DeleteDatasetProposal()")
 
-	proposal := &models.DatasetProposal{
-		UserId:         userId,
-		ProposalNodeId: nodeId,
-	}
+	proposal := dtos.BuildDatasetProposal(proposalDTO)
 
 	err := s.store.DeleteDatasetProposal(proposal)
 	if err != nil {
