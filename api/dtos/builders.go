@@ -1,8 +1,6 @@
 package dtos
 
 import (
-	"fmt"
-	"github.com/google/uuid"
 	"github.com/pennsieve/publishing-service/api/aws/s3"
 	"github.com/pennsieve/publishing-service/api/models"
 	"time"
@@ -75,13 +73,16 @@ func BuildDatasetProposalDTO(proposal models.DatasetProposal) DatasetProposalDTO
 		surveyDTOs = append(surveyDTOs, BuildSurveyDTO(proposal.Survey[i]))
 	}
 	return DatasetProposalDTO{
-		UserId:         proposal.UserId,
-		ProposalNodeId: proposal.ProposalNodeId,
-		Name:           proposal.Name,
-		Description:    proposal.Description,
-		RepositoryId:   proposal.RepositoryId,
-		Status:         proposal.Status,
-		Survey:         surveyDTOs,
+		UserId:             proposal.UserId,
+		ProposalNodeId:     proposal.ProposalNodeId,
+		Name:               proposal.Name,
+		Description:        proposal.Description,
+		RepositoryId:       proposal.RepositoryId,
+		OrganizationNodeId: proposal.OrganizationNodeId,
+		Status:             proposal.Status,
+		Survey:             surveyDTOs,
+		CreatedAt:          proposal.CreatedAt,
+		UpdatedAt:          proposal.UpdatedAt,
 	}
 }
 
@@ -95,12 +96,12 @@ func BuildDatasetProposal(dto DatasetProposalDTO) *models.DatasetProposal {
 
 	proposal := &models.DatasetProposal{
 		UserId:             dto.UserId,
-		ProposalNodeId:     fmt.Sprintf("%s:%s:%s", "N", "proposal", uuid.NewString()),
+		ProposalNodeId:     dto.ProposalNodeId,
 		Name:               dto.Name,
 		Description:        dto.Description,
 		RepositoryId:       dto.RepositoryId,
 		OrganizationNodeId: dto.OrganizationNodeId,
-		Status:             "DRAFT",
+		Status:             dto.Status,
 		Survey:             survey,
 		CreatedAt:          currentTime,
 		UpdatedAt:          currentTime,
