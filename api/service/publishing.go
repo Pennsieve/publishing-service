@@ -138,6 +138,11 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		survey = append(survey, dtos.BuildSurvey(dto.Survey[i]))
 	}
 
+	var contributors []models.Contributor
+	for i := 0; i < len(dto.Contributors); i++ {
+		contributors = append(contributors, dtos.BuildContributor(dto.Contributors[i]))
+	}
+
 	currentTime := time.Now().Unix()
 
 	proposal := &models.DatasetProposal{
@@ -149,6 +154,7 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		OrganizationNodeId: dto.OrganizationNodeId,
 		Status:             "DRAFT",
 		Survey:             survey,
+		Contributors:       contributors,
 		CreatedAt:          currentTime,
 		UpdatedAt:          currentTime,
 	}
