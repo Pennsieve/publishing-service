@@ -28,6 +28,22 @@ func BuildSurvey(survey SurveyDTO) models.Survey {
 	}
 }
 
+func BuildContributorDTO(contributor models.Contributor) ContributorDTO {
+	return ContributorDTO{
+		FirstName:    contributor.FirstName,
+		LastName:     contributor.LastName,
+		EmailAddress: contributor.EmailAddress,
+	}
+}
+
+func BuildContributor(contributor ContributorDTO) models.Contributor {
+	return models.Contributor{
+		FirstName:    contributor.FirstName,
+		LastName:     contributor.LastName,
+		EmailAddress: contributor.EmailAddress,
+	}
+}
+
 // TODO: can we better abstract the type for questionMap?
 func BuildRepositoryDTO(repository models.Repository, questionMap map[int]QuestionDTO) RepositoryDTO {
 	// build list of selected Questions for the Repository
@@ -72,6 +88,12 @@ func BuildDatasetProposalDTO(proposal models.DatasetProposal) DatasetProposalDTO
 	for i := 0; i < len(proposal.Survey); i++ {
 		surveyDTOs = append(surveyDTOs, BuildSurveyDTO(proposal.Survey[i]))
 	}
+
+	var contributorDTOs []ContributorDTO
+	for i := 0; i < len(proposal.Contributors); i++ {
+		contributorDTOs = append(contributorDTOs, BuildContributorDTO(proposal.Contributors[i]))
+	}
+
 	return DatasetProposalDTO{
 		UserId:             proposal.UserId,
 		ProposalNodeId:     proposal.ProposalNodeId,
@@ -81,6 +103,7 @@ func BuildDatasetProposalDTO(proposal models.DatasetProposal) DatasetProposalDTO
 		OrganizationNodeId: proposal.OrganizationNodeId,
 		Status:             proposal.Status,
 		Survey:             surveyDTOs,
+		Contributors:       contributorDTOs,
 		CreatedAt:          proposal.CreatedAt,
 		UpdatedAt:          proposal.UpdatedAt,
 	}
@@ -90,6 +113,11 @@ func BuildDatasetProposal(dto DatasetProposalDTO) *models.DatasetProposal {
 	var survey []models.Survey
 	for i := 0; i < len(dto.Survey); i++ {
 		survey = append(survey, BuildSurvey(dto.Survey[i]))
+	}
+
+	var contributors []models.Contributor
+	for i := 0; i < len(dto.Contributors); i++ {
+		contributors = append(contributors, BuildContributor(dto.Contributors[i]))
 	}
 
 	currentTime := time.Now().Unix()
@@ -103,6 +131,7 @@ func BuildDatasetProposal(dto DatasetProposalDTO) *models.DatasetProposal {
 		OrganizationNodeId: dto.OrganizationNodeId,
 		Status:             dto.Status,
 		Survey:             survey,
+		Contributors:       contributors,
 		CreatedAt:          currentTime,
 		UpdatedAt:          currentTime,
 	}
