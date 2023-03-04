@@ -17,7 +17,7 @@ type PublishingService interface {
 	GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error)
 	GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error)
 	CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
-	UpdateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
+	UpdateDatasetProposal(userId int, existing dtos.DatasetProposalDTO, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	DeleteDatasetProposal(proposal dtos.DatasetProposalDTO) (bool, error)
 }
 
@@ -170,37 +170,43 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 	return &dtoResult, nil
 }
 
-func (s *publishingService) UpdateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
-	log.Println("service.UpdateDatasetProposal()")
+func (s *publishingService) UpdateDatasetProposal(userId int, existing dtos.DatasetProposalDTO, update dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"userId": userId, "existing": fmt.Sprintf("%+v", existing), "update": fmt.Sprintf("%+v", update)}).Info("service.UpdateDatasetProposal()")
 
 	var survey []models.Survey
-	for i := 0; i < len(dto.Survey); i++ {
-		survey = append(survey, dtos.BuildSurvey(dto.Survey[i]))
+	for i := 0; i < len(update.Survey); i++ {
+		survey = append(survey, dtos.BuildSurvey(update.Survey[i]))
+	}
+
+	var contributors []models.Contributor
+	for i := 0; i < len(update.Contributors); i++ {
+		contributors = append(contributors, dtos.BuildContributor(update.Contributors[i]))
 	}
 
 	currentTime := time.Now().Unix()
 
-	proposal := &models.DatasetProposal{
+	updated := &models.DatasetProposal{
 		UserId:             userId,
-		ProposalNodeId:     dto.ProposalNodeId,
-		Name:               dto.Name,
-		Description:        dto.Description,
-		RepositoryId:       dto.RepositoryId,
-		OrganizationNodeId: dto.OrganizationNodeId,
-		Status:             dto.Status,
+		ProposalNodeId:     existing.ProposalNodeId,
+		Name:               update.Name,
+		Description:        update.Description,
+		RepositoryId:       existing.RepositoryId,
+		OrganizationNodeId: existing.OrganizationNodeId,
+		Status:             existing.Status,
 		Survey:             survey,
-		CreatedAt:          dto.CreatedAt,
+		Contributors:       contributors,
+		CreatedAt:          existing.CreatedAt,
 		UpdatedAt:          currentTime,
 	}
-	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.UpdateDatasetProposal()")
+	log.WithFields(log.Fields{"updated": fmt.Sprintf("%+v", updated)}).Debug("service.UpdateDatasetProposal()")
 
-	_, err := s.store.UpdateDatasetProposal(proposal)
+	_, err := s.store.UpdateDatasetProposal(updated)
 	if err != nil {
 		log.Fatalln("store.UpdateDatasetProposal() failed: ", err)
 		return nil, err
 	}
 
-	dtoResult := dtos.BuildDatasetProposalDTO(*proposal)
+	dtoResult := dtos.BuildDatasetProposalDTO(*updated)
 	return &dtoResult, nil
 }
 
