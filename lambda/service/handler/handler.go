@@ -262,14 +262,14 @@ func handleUpdateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	}
 
 	// get Proposal by UserId and ProposalNodeId
-	_, err = service.GetDatasetProposal(requestDTO.UserId, requestDTO.ProposalNodeId)
+	proposal, err := service.GetDatasetProposal(requestDTO.UserId, requestDTO.ProposalNodeId)
 	if err != nil {
 		log.WithFields(log.Fields{"UserId": requestDTO.UserId, "ProposalNodeId": requestDTO.ProposalNodeId}).Error("Dataset Proposal does not exist")
 		return nil, 404
 	}
 
 	// if it exists, then invoke update
-	resultDTO, err := service.UpdateDatasetProposal(int(claims.UserClaim.Id), requestDTO)
+	resultDTO, err := service.UpdateDatasetProposal(int(claims.UserClaim.Id), proposal, requestDTO)
 	if err != nil {
 		log.Error("service.UpdateDatasetProposal() failed: ", err)
 		return nil, 500
