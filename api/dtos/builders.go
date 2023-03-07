@@ -97,6 +97,7 @@ func BuildDatasetProposalDTO(proposal models.DatasetProposal) DatasetProposalDTO
 	return DatasetProposalDTO{
 		UserId:             proposal.UserId,
 		ProposalNodeId:     proposal.ProposalNodeId,
+		OwnerName:          proposal.OwnerName,
 		Name:               proposal.Name,
 		Description:        proposal.Description,
 		RepositoryId:       proposal.RepositoryId,
@@ -125,6 +126,7 @@ func BuildDatasetProposal(dto DatasetProposalDTO) *models.DatasetProposal {
 	proposal := &models.DatasetProposal{
 		UserId:             dto.UserId,
 		ProposalNodeId:     dto.ProposalNodeId,
+		OwnerName:          dto.OwnerName,
 		Name:               dto.Name,
 		Description:        dto.Description,
 		RepositoryId:       dto.RepositoryId,
