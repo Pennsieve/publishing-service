@@ -8,6 +8,7 @@ type SurveyDTO struct {
 type DatasetProposalDTO struct {
 	UserId             int              `json:"UserId"`
 	ProposalNodeId     string           `json:"ProposalNodeId"`
+	OwnerName          string           `json:"OwnerName"`
 	Name               string           `json:"Name"`
 	Description        string           `json:"Description"`
 	RepositoryId       int              `json:"RepositoryId"`
