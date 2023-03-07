@@ -148,6 +148,7 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 	proposal := &models.DatasetProposal{
 		UserId:             userId,
 		ProposalNodeId:     fmt.Sprintf("%s:%s:%s", "N", "proposal", uuid.NewString()),
+		OwnerName:          dto.OwnerName,
 		Name:               dto.Name,
 		Description:        dto.Description,
 		RepositoryId:       dto.RepositoryId,
@@ -188,6 +189,7 @@ func (s *publishingService) UpdateDatasetProposal(userId int, existing dtos.Data
 	updated := &models.DatasetProposal{
 		UserId:             userId,
 		ProposalNodeId:     existing.ProposalNodeId,
+		OwnerName:          update.OwnerName,
 		Name:               update.Name,
 		Description:        update.Description,
 		RepositoryId:       existing.RepositoryId,
