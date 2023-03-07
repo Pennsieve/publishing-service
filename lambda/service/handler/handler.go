@@ -197,7 +197,12 @@ func handleGetWorkspaceDatasetProposals(claims *authorizer.Claims, service servi
 		return nil, 500
 	}
 
-	jsonBody, err := json.Marshal(result)
+	response := &dtos.DatasetSubmissionsDTO{
+		TotalCount: len(result),
+		Proposals:  result,
+	}
+
+	jsonBody, err := json.Marshal(response)
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
 		return nil, 500
