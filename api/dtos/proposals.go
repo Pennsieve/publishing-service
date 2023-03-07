@@ -19,3 +19,8 @@ type DatasetProposalDTO struct {
 	CreatedAt          int64            `json:"CreatedAt"`
 	UpdatedAt          int64            `json:"UpdatedAt"`
 }
+
+type DatasetSubmissionsDTO struct {
+	TotalCount int                  `json:"totalCount"`
+	Proposals  []DatasetProposalDTO `json:"proposals"`
+}
