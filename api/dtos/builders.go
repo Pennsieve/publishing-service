@@ -71,7 +71,7 @@ func BuildRepositoryDTO(repository models.Repository, questionMap map[int]Questi
 		OrganizationNodeId:  repository.OrganizationNodeId,
 		Name:                repository.Name,
 		DisplayName:         repository.DisplayName,
-		WorkspaceId:         repository.WorkspaceId,
+		RepositoryId:        repository.RepositoryId,
 		Type:                repository.Type,
 		Description:         repository.Description,
 		URL:                 repository.URL,
@@ -96,7 +96,7 @@ func BuildDatasetProposalDTO(proposal models.DatasetProposal) DatasetProposalDTO
 
 	return DatasetProposalDTO{
 		UserId:             proposal.UserId,
-		ProposalNodeId:     proposal.ProposalNodeId,
+		NodeId:             proposal.NodeId,
 		OwnerName:          proposal.OwnerName,
 		Name:               proposal.Name,
 		Description:        proposal.Description,
@@ -125,7 +125,7 @@ func BuildDatasetProposal(dto DatasetProposalDTO) *models.DatasetProposal {
 
 	proposal := &models.DatasetProposal{
 		UserId:             dto.UserId,
-		ProposalNodeId:     dto.ProposalNodeId,
+		NodeId:             dto.NodeId,
 		OwnerName:          dto.OwnerName,
 		Name:               dto.Name,
 		Description:        dto.Description,
