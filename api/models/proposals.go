@@ -22,6 +22,6 @@ type DatasetProposal struct {
 }
 
 type DatasetProposalKey struct {
-	UserId         int    `json:"UserId"`
-	ProposalNodeId string `json:"ProposalNodeId"`
+	UserId int    `json:"UserId"`
+	NodeId string `json:"NodeId"`
 }
