@@ -9,7 +9,7 @@ type Repository struct {
 	OrganizationNodeId string     `dynamodbav:"OrganizationNodeId"`
 	Name               string     `dynamodbav:"Name"`
 	DisplayName        string     `dynamodbav:"DisplayName"`
-	WorkspaceId        int64      `dynamodbav:"WorkspaceId"`
+	RepositoryId       int64      `dynamodbav:"RepositoryId"`
 	Type               string     `dynamodbav:"Type"`
 	Description        string     `dynamodbav:"Description"`
 	URL                string     `dynamodbav:"URL"`

@@ -7,7 +7,7 @@ type Survey struct {
 
 type DatasetProposal struct {
 	UserId             int           `dynamodbav:"UserId"`
-	ProposalNodeId     string        `dynamodbav:"ProposalNodeId"`
+	NodeId             string        `dynamodbav:"NodeId"`
 	OwnerName          string        `dynamodbav:"OwnerName"`
 	Name               string        `dynamodbav:"Name"`
 	Description        string        `dynamodbav:"Description"`
@@ -22,6 +22,6 @@ type DatasetProposal struct {
 }
 
 type DatasetProposalKey struct {
-	UserId         int    `json:"UserId"`
-	ProposalNodeId string `json:"ProposalNodeId"`
+	UserId int    `json:"UserId"`
+	NodeId string `json:"NodeId"`
 }

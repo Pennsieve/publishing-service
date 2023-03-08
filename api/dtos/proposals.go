@@ -1,24 +1,24 @@
 package dtos
 
 type SurveyDTO struct {
-	QuestionId int    `json:"QuestionId"`
-	Response   string `json:"Response"`
+	QuestionId int    `json:"questionId"`
+	Response   string `json:"response"`
 }
 
 type DatasetProposalDTO struct {
-	UserId             int              `json:"UserId"`
-	ProposalNodeId     string           `json:"ProposalNodeId"`
-	OwnerName          string           `json:"OwnerName"`
-	Name               string           `json:"Name"`
-	Description        string           `json:"Description"`
-	RepositoryId       int              `json:"RepositoryId"`
-	OrganizationNodeId string           `json:"OrganizationNodeId"`
-	DatasetNodeId      string           `json:"DatasetNodeId"`
-	Status             string           `json:"Status"`
-	Survey             []SurveyDTO      `json:"Survey"`
-	Contributors       []ContributorDTO `json:"Contributors"`
-	CreatedAt          int64            `json:"CreatedAt"`
-	UpdatedAt          int64            `json:"UpdatedAt"`
+	UserId             int              `json:"userId"`
+	NodeId             string           `json:"nodeId"`
+	OwnerName          string           `json:"ownerName"`
+	Name               string           `json:"name"`
+	Description        string           `json:"description"`
+	RepositoryId       int              `json:"repositoryId"`
+	OrganizationNodeId string           `json:"organizationNodeId"`
+	DatasetNodeId      string           `json:"datasetNodeId"`
+	Status             string           `json:"status"`
+	Survey             []SurveyDTO      `json:"survey"`
+	Contributors       []ContributorDTO `json:"contributors"`
+	CreatedAt          int64            `json:"createdAt"`
+	UpdatedAt          int64            `json:"updatedAt"`
 }
 
 type DatasetSubmissionsDTO struct {

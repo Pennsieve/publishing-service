@@ -261,15 +261,15 @@ func handleUpdateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	log.WithFields(log.Fields{"requestDTO": fmt.Sprintf("%+v", requestDTO)}).Debug("handleUpdateDatasetProposal()")
 
 	// check that ProposalNodeId was provided
-	if requestDTO.ProposalNodeId == "" {
+	if requestDTO.NodeId == "" {
 		log.WithFields(log.Fields{}).Error("missing required field(s): ProposalNodeId")
 		return nil, 400
 	}
 
 	// get Proposal by UserId and ProposalNodeId
-	proposal, err := service.GetDatasetProposal(requestDTO.UserId, requestDTO.ProposalNodeId)
+	proposal, err := service.GetDatasetProposal(requestDTO.UserId, requestDTO.NodeId)
 	if err != nil {
-		log.WithFields(log.Fields{"UserId": requestDTO.UserId, "ProposalNodeId": requestDTO.ProposalNodeId}).Error("Dataset Proposal does not exist")
+		log.WithFields(log.Fields{"UserId": requestDTO.UserId, "NodeId": requestDTO.NodeId}).Error("Dataset Proposal does not exist")
 		return nil, 404
 	}
 
