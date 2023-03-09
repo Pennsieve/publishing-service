@@ -195,7 +195,7 @@ func (s *publishingStore) GetDatasetProposal(userId int, nodeId string) (models.
 	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("store.GetDatasetProposal()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
-		KeyConditionExpression: aws.String("UserId = :userId AND ProposalNodeId = :nodeId"),
+		KeyConditionExpression: aws.String("UserId = :userId AND NodeId = :nodeId"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":userId": &types.AttributeValueMemberN{
 				Value: intToString(userId),
