@@ -94,6 +94,16 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 		case "DELETE":
 			jsonBody, statusCode = handleDeleteDatasetProposal(request, claims, service)
 		}
+	case "/publishing/proposal/submit":
+		switch httpMethod {
+		case "POST":
+			jsonBody, statusCode = handleSubmitDatasetProposal(request, claims, service)
+		}
+	case "/publishing/proposal/withdraw":
+		switch httpMethod {
+		case "POST":
+			jsonBody, statusCode = handleWithdrawDatasetProposal(request, claims, service)
+		}
 	case "/publishing/submission":
 		switch httpMethod {
 		case "GET":
@@ -103,6 +113,16 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 				jsonBody = nil
 				statusCode = 401
 			}
+		}
+	case "/publishing/submission/accept":
+		switch httpMethod {
+		case "POST":
+			jsonBody, statusCode = handleAcceptDatasetProposal(request, claims, service)
+		}
+	case "/publishing/submission/reject":
+		switch httpMethod {
+		case "POST":
+			jsonBody, statusCode = handleRejectDatasetProposal(request, claims, service)
 		}
 	}
 
@@ -319,4 +339,52 @@ func handleDeleteDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	}
 
 	return nil, 200
+}
+
+func handleSubmitDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	log.WithFields(log.Fields{}).Debug("handleSubmitDatasetProposal()")
+
+	var err error
+	var nodeId string
+	var found bool
+
+	// get ProposalNodeId from request query parameters
+	queryParams := request.QueryStringParameters
+	if nodeId, found = queryParams["node_id"]; !found {
+		return nil, 400
+	}
+
+	userId := int(claims.UserClaim.Id)
+
+	proposalDTO, err := service.SubmitDatasetProposal(userId, nodeId)
+	if err != nil {
+		return nil, 400
+	}
+	log.WithFields(log.Fields{"proposalDTO": fmt.Sprintf("%+v", proposalDTO)}).Debug("handleSubmitDatasetProposal() submitted proposal")
+
+	jsonBody, err := json.Marshal(proposalDTO)
+	if err != nil {
+		log.Error("json.Marshal() failed: ", err)
+		return nil, 500
+	}
+
+	return jsonBody, 200
+}
+
+func handleWithdrawDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	log.WithFields(log.Fields{}).Debug("handleWithdrawDatasetProposal()")
+
+	return nil, 501
+}
+
+func handleAcceptDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	log.WithFields(log.Fields{}).Debug("handleAcceptDatasetProposal()")
+
+	return nil, 501
+}
+
+func handleRejectDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+	log.WithFields(log.Fields{}).Debug("handleRejectDatasetProposal()")
+
+	return nil, 501
 }

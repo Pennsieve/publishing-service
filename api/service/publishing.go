@@ -19,6 +19,7 @@ type PublishingService interface {
 	CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	UpdateDatasetProposal(userId int, existing dtos.DatasetProposalDTO, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	DeleteDatasetProposal(proposal dtos.DatasetProposalDTO) (bool, error)
+	SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
@@ -224,4 +225,58 @@ func (s *publishingService) DeleteDatasetProposal(proposalDTO dtos.DatasetPropos
 	}
 
 	return true, nil
+}
+
+func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
+	// get Dataset Proposal by User Id and Node Id
+	proposal, err := s.store.GetDatasetProposal(userId, nodeId)
+	if err != nil {
+		return nil, err
+	}
+
+	// verify that the Dataset Proposal Status is “DRAFT”
+	if proposal.Status != "DRAFT" {
+		return nil, fmt.Errorf("invalid dataset proposal state")
+	}
+
+	// get the Repository using the Organization Node Id on the Dataset Proposal
+	repository, err := s.store.GetRepository(proposal.OrganizationNodeId)
+
+	// verify that Repository Id is the same on the Repository and the Dataset Proposal (extra check)
+	if proposal.RepositoryId != repository.RepositoryId {
+		return nil, fmt.Errorf("RepositoryId does not match")
+	}
+
+	// ensure that all Repository Questions are answered in the Dataset Proposal Survey
+	// TODO: refactor this
+	ok := true
+	for _, repositoryQuestionId := range repository.Questions {
+		answered := false
+		for _, surveyQuestion := range proposal.Survey {
+			if surveyQuestion.QuestionId == repositoryQuestionId {
+				answered = true
+			}
+		}
+		if !answered {
+			ok = false
+		}
+	}
+	if !ok {
+		return nil, fmt.Errorf("all Repository questions have not been answered")
+	}
+
+	// update Dataset Proposal
+	currentTime := time.Now().Unix()
+	submitted := proposal
+	submitted.Status = "SUBMITTED"
+	submitted.UpdatedAt = currentTime
+	submitted.SubmittedAt = currentTime
+
+	updated, err := s.store.UpdateDatasetProposal(&submitted)
+	if err != nil {
+		return nil, err
+	}
+
+	dtoResult := dtos.BuildDatasetProposalDTO(*updated)
+	return &dtoResult, nil
 }
