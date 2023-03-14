@@ -19,6 +19,7 @@ type DatasetProposal struct {
 	Contributors       []Contributor `dynamodbav:"Contributors"`
 	CreatedAt          int64         `dynamodbav:"CreatedAt"`
 	UpdatedAt          int64         `dynamodbav:"UpdatedAt"`
+	SubmittedAt        int64         `dynamodbav:"SubmittedAt"`
 }
 
 type DatasetProposalKey struct {
