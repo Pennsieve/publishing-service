@@ -107,6 +107,7 @@ func BuildDatasetProposalDTO(proposal models.DatasetProposal) DatasetProposalDTO
 		Contributors:       contributorDTOs,
 		CreatedAt:          proposal.CreatedAt,
 		UpdatedAt:          proposal.UpdatedAt,
+		SubmittedAt:        proposal.SubmittedAt,
 	}
 }
 
