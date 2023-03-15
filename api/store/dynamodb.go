@@ -15,9 +15,9 @@ import (
 
 type PublishingStore interface {
 	GetRepositories() ([]models.Repository, error)
-	GetRepository(organizationNodeId string) (models.Repository, error)
+	GetRepository(organizationNodeId string) (*models.Repository, error)
 	GetQuestions() ([]models.Question, error)
-	GetDatasetProposal(userId int, nodeId string) (models.DatasetProposal, error)
+	GetDatasetProposal(userId int, nodeId string) (*models.DatasetProposal, error)
 	GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error)
 	GetDatasetProposalsForWorkspace(workspaceId int64) ([]models.DatasetProposal, error)
 	CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error)
@@ -149,7 +149,7 @@ func find[T PublishingTypes](client *dynamodb.Client, queryInput *dynamodb.Query
 	return results, nil
 }
 
-func get[T PublishingTypes](client *dynamodb.Client, queryInput *dynamodb.QueryInput) (T, error) {
+func get[T PublishingTypes](client *dynamodb.Client, queryInput *dynamodb.QueryInput) (*T, error) {
 	log.WithFields(log.Fields{"queryInput": fmt.Sprintf("%#v", queryInput)}).Debug("get()")
 	results, err := find[T](client, queryInput)
 	if err != nil {
@@ -165,7 +165,7 @@ func get[T PublishingTypes](client *dynamodb.Client, queryInput *dynamodb.QueryI
 		return nil, fmt.Errorf("singleton get returned more than one item")
 	}
 
-	return results[0], nil
+	return &results[0], nil
 }
 
 // TODO: make this function a generic ~> item T[]
@@ -191,7 +191,7 @@ func (s *publishingStore) GetRepositories() ([]models.Repository, error) {
 	return fetch[models.Repository](s.db, s.repositoriesTable)
 }
 
-func (s *publishingStore) GetRepository(organizationNodeId string) (models.Repository, error) {
+func (s *publishingStore) GetRepository(organizationNodeId string) (*models.Repository, error) {
 	log.WithFields(log.Fields{"organizationNodeId": organizationNodeId}).Info("GetRepository()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.repositoriesTable),
@@ -210,7 +210,7 @@ func (s *publishingStore) GetQuestions() ([]models.Question, error) {
 	return fetch[models.Question](s.db, s.questionsTable)
 }
 
-func (s *publishingStore) GetDatasetProposal(userId int, nodeId string) (models.DatasetProposal, error) {
+func (s *publishingStore) GetDatasetProposal(userId int, nodeId string) (*models.DatasetProposal, error) {
 	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("store.GetDatasetProposal()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),

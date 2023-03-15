@@ -86,7 +86,7 @@ func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
 func proposalDTOsList(proposals []models.DatasetProposal) []dtos.DatasetProposalDTO {
 	var proposalDTOs []dtos.DatasetProposalDTO
 	for i := 0; i < len(proposals); i++ {
-		proposalDTOs = append(proposalDTOs, dtos.BuildDatasetProposalDTO(proposals[i]))
+		proposalDTOs = append(proposalDTOs, dtos.BuildDatasetProposalDTO(&proposals[i]))
 	}
 	return proposalDTOs
 }
@@ -168,7 +168,7 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		return nil, err
 	}
 
-	dtoResult := dtos.BuildDatasetProposalDTO(*proposal)
+	dtoResult := dtos.BuildDatasetProposalDTO(proposal)
 	return &dtoResult, nil
 }
 
@@ -209,7 +209,7 @@ func (s *publishingService) UpdateDatasetProposal(userId int, existing dtos.Data
 		return nil, err
 	}
 
-	dtoResult := dtos.BuildDatasetProposalDTO(*updated)
+	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
 }
 
@@ -272,11 +272,11 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 	submitted.UpdatedAt = currentTime
 	submitted.SubmittedAt = currentTime
 
-	updated, err := s.store.UpdateDatasetProposal(&submitted)
+	updated, err := s.store.UpdateDatasetProposal(submitted)
 	if err != nil {
 		return nil, err
 	}
 
-	dtoResult := dtos.BuildDatasetProposalDTO(*updated)
+	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
 }
