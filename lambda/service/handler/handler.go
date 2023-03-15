@@ -108,7 +108,7 @@ func handleRequest(request events.APIGatewayV2HTTPRequest, service service.Publi
 		switch httpMethod {
 		case "GET":
 			if ok := authorized(); ok {
-				jsonBody, statusCode = handleGetWorkspaceDatasetProposals(claims, service)
+				jsonBody, statusCode = handleGetWorkspaceDatasetProposals(request, claims, service)
 			} else {
 				jsonBody = nil
 				statusCode = 401
@@ -207,11 +207,19 @@ func handleGetUserDatasetProposals(claims *authorizer.Claims, service service.Pu
 }
 
 // TODO: ensure the user in on Publishers Team in the Workspace
-func handleGetWorkspaceDatasetProposals(claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
+func handleGetWorkspaceDatasetProposals(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
 	// get workspace id from Organization Claim
 	id := claims.OrgClaim.IntId
 
-	result, err := service.GetDatasetProposalsForWorkspace(id)
+	// get ProposalNodeId from request query parameters
+	var status string
+	var found bool
+	queryParams := request.QueryStringParameters
+	if status, found = queryParams["status"]; !found {
+		status = "SUBMITTED"
+	}
+
+	result, err := service.GetDatasetProposalsForWorkspace(id, status)
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
 		return nil, 500
