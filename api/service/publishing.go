@@ -19,6 +19,7 @@ type PublishingService interface {
 	CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	UpdateDatasetProposal(userId int, existing dtos.DatasetProposalDTO, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	DeleteDatasetProposal(proposal dtos.DatasetProposalDTO) (bool, error)
+	SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
@@ -85,7 +86,7 @@ func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
 func proposalDTOsList(proposals []models.DatasetProposal) []dtos.DatasetProposalDTO {
 	var proposalDTOs []dtos.DatasetProposalDTO
 	for i := 0; i < len(proposals); i++ {
-		proposalDTOs = append(proposalDTOs, dtos.BuildDatasetProposalDTO(proposals[i]))
+		proposalDTOs = append(proposalDTOs, dtos.BuildDatasetProposalDTO(&proposals[i]))
 	}
 	return proposalDTOs
 }
@@ -167,7 +168,7 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		return nil, err
 	}
 
-	dtoResult := dtos.BuildDatasetProposalDTO(*proposal)
+	dtoResult := dtos.BuildDatasetProposalDTO(proposal)
 	return &dtoResult, nil
 }
 
@@ -208,7 +209,7 @@ func (s *publishingService) UpdateDatasetProposal(userId int, existing dtos.Data
 		return nil, err
 	}
 
-	dtoResult := dtos.BuildDatasetProposalDTO(*updated)
+	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
 }
 
@@ -224,4 +225,61 @@ func (s *publishingService) DeleteDatasetProposal(proposalDTO dtos.DatasetPropos
 	}
 
 	return true, nil
+}
+
+func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.SubmitDatasetProposal()")
+
+	// get Dataset Proposal by User Id and Node Id
+	proposal, err := s.store.GetDatasetProposal(userId, nodeId)
+	if err != nil {
+		return nil, err
+	}
+	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.SubmitDatasetProposal()")
+
+	// verify that the Dataset Proposal Status is “DRAFT”
+	if proposal.Status != "DRAFT" {
+		return nil, fmt.Errorf("invalid action: proposal.status must be DRAFT in order to submit")
+	}
+
+	// get the Repository using the Organization Node Id on the Dataset Proposal
+	repository, err := s.store.GetRepository(proposal.OrganizationNodeId)
+
+	// verify that Repository Id is the same on the Repository and the Dataset Proposal (extra check)
+	if proposal.RepositoryId != repository.RepositoryId {
+		return nil, fmt.Errorf("invalid state: RepositoryId on proposal does not match the Repository")
+	}
+
+	// ensure that all Repository Questions are answered in the Dataset Proposal Survey
+	// TODO: refactor this
+	ok := true
+	for _, repositoryQuestionId := range repository.Questions {
+		answered := false
+		for _, surveyQuestion := range proposal.Survey {
+			if surveyQuestion.QuestionId == repositoryQuestionId {
+				answered = true
+			}
+		}
+		if !answered {
+			ok = false
+		}
+	}
+	if !ok {
+		return nil, fmt.Errorf("invalid request: all Repository questions have not been answered")
+	}
+
+	// update Dataset Proposal
+	currentTime := time.Now().Unix()
+	submitted := proposal
+	submitted.Status = "SUBMITTED"
+	submitted.UpdatedAt = currentTime
+	submitted.SubmittedAt = currentTime
+
+	updated, err := s.store.UpdateDatasetProposal(submitted)
+	if err != nil {
+		return nil, err
+	}
+
+	dtoResult := dtos.BuildDatasetProposalDTO(updated)
+	return &dtoResult, nil
 }

@@ -83,7 +83,7 @@ func BuildRepositoryDTO(repository models.Repository, questionMap map[int]Questi
 	}
 }
 
-func BuildDatasetProposalDTO(proposal models.DatasetProposal) DatasetProposalDTO {
+func BuildDatasetProposalDTO(proposal *models.DatasetProposal) DatasetProposalDTO {
 	var surveyDTOs []SurveyDTO
 	for i := 0; i < len(proposal.Survey); i++ {
 		surveyDTOs = append(surveyDTOs, BuildSurveyDTO(proposal.Survey[i]))
@@ -107,6 +107,7 @@ func BuildDatasetProposalDTO(proposal models.DatasetProposal) DatasetProposalDTO
 		Contributors:       contributorDTOs,
 		CreatedAt:          proposal.CreatedAt,
 		UpdatedAt:          proposal.UpdatedAt,
+		SubmittedAt:        proposal.SubmittedAt,
 	}
 }
 
