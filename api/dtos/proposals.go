@@ -14,7 +14,7 @@ type DatasetProposalDTO struct {
 	RepositoryId       int              `json:"repositoryId"`
 	OrganizationNodeId string           `json:"organizationNodeId"`
 	DatasetNodeId      string           `json:"datasetNodeId"`
-	Status             string           `json:"status"`
+	ProposalStatus     string           `json:"proposalStatus"`
 	Survey             []SurveyDTO      `json:"survey"`
 	Contributors       []ContributorDTO `json:"contributors"`
 	CreatedAt          int64            `json:"createdAt"`
