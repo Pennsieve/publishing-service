@@ -228,15 +228,18 @@ func (s *publishingService) DeleteDatasetProposal(proposalDTO dtos.DatasetPropos
 }
 
 func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.SubmitDatasetProposal()")
+
 	// get Dataset Proposal by User Id and Node Id
 	proposal, err := s.store.GetDatasetProposal(userId, nodeId)
 	if err != nil {
 		return nil, err
 	}
+	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.SubmitDatasetProposal()")
 
 	// verify that the Dataset Proposal Status is “DRAFT”
 	if proposal.Status != "DRAFT" {
-		return nil, fmt.Errorf("invalid dataset proposal state")
+		return nil, fmt.Errorf("invalid action: proposal.status must be DRAFT in order to submit")
 	}
 
 	// get the Repository using the Organization Node Id on the Dataset Proposal
@@ -244,7 +247,7 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 
 	// verify that Repository Id is the same on the Repository and the Dataset Proposal (extra check)
 	if proposal.RepositoryId != repository.RepositoryId {
-		return nil, fmt.Errorf("RepositoryId does not match")
+		return nil, fmt.Errorf("invalid state: RepositoryId on proposal does not match the Repository")
 	}
 
 	// ensure that all Repository Questions are answered in the Dataset Proposal Survey
@@ -262,7 +265,7 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 		}
 	}
 	if !ok {
-		return nil, fmt.Errorf("all Repository questions have not been answered")
+		return nil, fmt.Errorf("invalid request: all Repository questions have not been answered")
 	}
 
 	// update Dataset Proposal
