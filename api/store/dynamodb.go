@@ -245,8 +245,8 @@ func (s *publishingStore) GetDatasetProposalsForWorkspace(workspaceId int64, sta
 	log.WithFields(log.Fields{"workspaceId": workspaceId}).Info("store.GetDatasetProposalsForWorkspace()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
-		IndexName:              aws.String("RepositoryStatusIndex"),
-		KeyConditionExpression: aws.String("RepositoryId = :workspaceId AND Status = :status"),
+		IndexName:              aws.String("RepositoryProposalStatusIndex"),
+		KeyConditionExpression: aws.String("RepositoryId = :workspaceId AND ProposalStatus = :status"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":workspaceId": &types.AttributeValueMemberN{
 				Value: int64ToString(workspaceId),

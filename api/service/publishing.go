@@ -156,7 +156,7 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 		Description:        dto.Description,
 		RepositoryId:       dto.RepositoryId,
 		OrganizationNodeId: dto.OrganizationNodeId,
-		Status:             "DRAFT",
+		ProposalStatus:     "DRAFT",
 		Survey:             survey,
 		Contributors:       contributors,
 		CreatedAt:          currentTime,
@@ -197,7 +197,7 @@ func (s *publishingService) UpdateDatasetProposal(userId int, existing dtos.Data
 		Description:        update.Description,
 		RepositoryId:       existing.RepositoryId,
 		OrganizationNodeId: existing.OrganizationNodeId,
-		Status:             existing.Status,
+		ProposalStatus:     existing.ProposalStatus,
 		Survey:             survey,
 		Contributors:       contributors,
 		CreatedAt:          existing.CreatedAt,
@@ -240,7 +240,7 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.SubmitDatasetProposal()")
 
 	// verify that the Dataset Proposal Status is “DRAFT”
-	if proposal.Status != "DRAFT" {
+	if proposal.ProposalStatus != "DRAFT" {
 		return nil, fmt.Errorf("invalid action: proposal.status must be DRAFT in order to submit")
 	}
 
@@ -273,7 +273,7 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 	// update Dataset Proposal
 	currentTime := time.Now().Unix()
 	submitted := proposal
-	submitted.Status = "SUBMITTED"
+	submitted.ProposalStatus = "SUBMITTED"
 	submitted.UpdatedAt = currentTime
 	submitted.SubmittedAt = currentTime
 

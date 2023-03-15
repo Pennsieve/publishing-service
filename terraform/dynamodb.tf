@@ -76,14 +76,14 @@ resource "aws_dynamodb_table" "dataset_proposals_dynamo_table" {
   }
 
   attribute {
-    name = "Status"
+    name = "ProposalStatus"
     type = "S"
   }
 
   global_secondary_index {
-    name               = "RepositoryStatusIndex"
+    name               = "RepositoryProposalStatusIndex"
     hash_key           = "RepositoryId"
-    range_key          = "Status"
+    range_key          = "ProposalStatus"
     projection_type    = "ALL"
   }
 
