@@ -90,8 +90,12 @@ func query(client *dynamodb.Client, queryInput *dynamodb.QueryInput) (*dynamodb.
 	return result, nil
 }
 
+type PublishingTypes interface {
+	models.Repository | models.Question | models.DatasetProposal
+}
+
 // TODO: figure out struct embedding to simplify list of types allowed?
-func transform[T models.Repository | models.Question | models.DatasetProposal](items []map[string]types.AttributeValue) ([]T, error) {
+func transform[T PublishingTypes](items []map[string]types.AttributeValue) ([]T, error) {
 	var results []T
 	for _, item := range items {
 		var result T
@@ -104,7 +108,7 @@ func transform[T models.Repository | models.Question | models.DatasetProposal](i
 	return results, nil
 }
 
-func fetch[T models.Repository | models.Question](client *dynamodb.Client, tableName string) ([]T, error) {
+func fetch[T PublishingTypes](client *dynamodb.Client, tableName string) ([]T, error) {
 	log.WithFields(log.Fields{"tableName": tableName}).Debug("fetch()")
 	var err error
 
@@ -125,7 +129,7 @@ func fetch[T models.Repository | models.Question](client *dynamodb.Client, table
 	return results, nil
 }
 
-func find[T models.Repository | models.DatasetProposal](client *dynamodb.Client, queryInput *dynamodb.QueryInput) ([]T, error) {
+func find[T PublishingTypes](client *dynamodb.Client, queryInput *dynamodb.QueryInput) ([]T, error) {
 	log.WithFields(log.Fields{"queryInput": fmt.Sprintf("%#v", queryInput)}).Debug("find()")
 	var err error
 
@@ -145,7 +149,7 @@ func find[T models.Repository | models.DatasetProposal](client *dynamodb.Client,
 	return results, nil
 }
 
-func get[T models.Repository | models.DatasetProposal](client *dynamodb.Client, queryInput *dynamodb.QueryInput) (T, error) {
+func get[T PublishingTypes](client *dynamodb.Client, queryInput *dynamodb.QueryInput) (T, error) {
 	log.WithFields(log.Fields{"queryInput": fmt.Sprintf("%#v", queryInput)}).Debug("get()")
 	results, err := find[T](client, queryInput)
 	if err != nil {
