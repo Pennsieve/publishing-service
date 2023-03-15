@@ -15,7 +15,7 @@ type PublishingService interface {
 	GetProposalQuestions() ([]dtos.QuestionDTO, error)
 	GetDatasetProposal(userId int, nodeId string) (dtos.DatasetProposalDTO, error)
 	GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error)
-	GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error)
+	GetDatasetProposalsForWorkspace(id int64, status string) ([]dtos.DatasetProposalDTO, error)
 	CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	UpdateDatasetProposal(userId int, existing dtos.DatasetProposalDTO, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	DeleteDatasetProposal(proposal dtos.DatasetProposalDTO) (bool, error)
@@ -117,10 +117,12 @@ func (s *publishingService) GetDatasetProposalsForUser(userId int64) ([]dtos.Dat
 	return proposalDTOsList(proposals), nil
 }
 
-func (s *publishingService) GetDatasetProposalsForWorkspace(id int64) ([]dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"id": id}).Info("service.GetDatasetProposalsForWorkspace()")
+func (s *publishingService) GetDatasetProposalsForWorkspace(id int64, status string) ([]dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"id": id, "status": status}).Info("service.GetDatasetProposalsForWorkspace()")
 
-	proposals, err := s.store.GetDatasetProposalsForWorkspace(id)
+	// TODO: verify that status is one of: SUBMITTED, ACCEPTED, REJECTED
+
+	proposals, err := s.store.GetDatasetProposalsForWorkspace(id, status)
 	if err != nil {
 		return nil, err
 	}

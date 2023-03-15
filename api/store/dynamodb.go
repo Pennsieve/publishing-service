@@ -19,7 +19,7 @@ type PublishingStore interface {
 	GetQuestions() ([]models.Question, error)
 	GetDatasetProposal(userId int, nodeId string) (*models.DatasetProposal, error)
 	GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error)
-	GetDatasetProposalsForWorkspace(workspaceId int64) ([]models.DatasetProposal, error)
+	GetDatasetProposalsForWorkspace(workspaceId int64, status string) ([]models.DatasetProposal, error)
 	CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error)
 	UpdateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error)
 	DeleteDatasetProposal(proposal *models.DatasetProposal) error
@@ -241,15 +241,18 @@ func (s *publishingStore) GetDatasetProposalsForUser(userId int64) ([]models.Dat
 	return find[models.DatasetProposal](s.db, &queryInput)
 }
 
-func (s *publishingStore) GetDatasetProposalsForWorkspace(workspaceId int64) ([]models.DatasetProposal, error) {
+func (s *publishingStore) GetDatasetProposalsForWorkspace(workspaceId int64, status string) ([]models.DatasetProposal, error) {
 	log.WithFields(log.Fields{"workspaceId": workspaceId}).Info("store.GetDatasetProposalsForWorkspace()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
-		IndexName:              aws.String("RepositoryIdIndex"),
-		KeyConditionExpression: aws.String("RepositoryId = :workspaceId"),
+		IndexName:              aws.String("RepositoryStatusIndex"),
+		KeyConditionExpression: aws.String("RepositoryId = :workspaceId AND Status = :status"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":workspaceId": &types.AttributeValueMemberN{
 				Value: int64ToString(workspaceId),
+			},
+			":status": &types.AttributeValueMemberS{
+				Value: status,
 			},
 		},
 		Select: "ALL_PROJECTED_ATTRIBUTES",
