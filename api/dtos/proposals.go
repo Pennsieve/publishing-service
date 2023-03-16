@@ -20,6 +20,7 @@ type DatasetProposalDTO struct {
 	CreatedAt          int64            `json:"createdAt"`
 	UpdatedAt          int64            `json:"updatedAt"`
 	SubmittedAt        int64            `json:"submittedAt"`
+	AcceptedAt         int64            `json:"acceptedAt"`
 }
 
 type DatasetSubmissionsDTO struct {

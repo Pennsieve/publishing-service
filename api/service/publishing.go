@@ -20,6 +20,7 @@ type PublishingService interface {
 	UpdateDatasetProposal(userId int, existing dtos.DatasetProposalDTO, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	DeleteDatasetProposal(proposal dtos.DatasetProposalDTO) (bool, error)
 	SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error)
+	AcceptDatasetProposal(repositoryId int, nodeId string) (*dtos.DatasetProposalDTO, error)
 }
 
 func NewPublishingService(store store.PublishingStore) *publishingService {
@@ -281,6 +282,47 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: send email to Repository Publishers Team
+
+	dtoResult := dtos.BuildDatasetProposalDTO(updated)
+	return &dtoResult, nil
+}
+
+func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"repositoryId": repositoryId, "nodeId": nodeId}).Info("service.AcceptDatasetProposal()")
+
+	// get Dataset Proposal by Repository Id and Node Id
+	proposal, err := s.store.GetDatasetProposalForRepository(repositoryId, "SUBMITTED", nodeId)
+	if err != nil {
+		return nil, err
+	}
+	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.AcceptDatasetProposal()")
+
+	// verify that the Dataset Proposal Status is “SUBMITTED”
+	if proposal.ProposalStatus != "SUBMITTED" {
+		return nil, fmt.Errorf("invalid action: proposal.status must be SUBMITTED in order to accept")
+	}
+
+	// update Dataset Proposal
+	// - set Status = “ACCEPTED”
+	// - set AcceptedAt = current time
+	currentTime := time.Now().Unix()
+	accepted := proposal
+	accepted.ProposalStatus = "ACCEPTED"
+	accepted.UpdatedAt = currentTime
+	accepted.AcceptedAt = currentTime
+
+	updated, err := s.store.UpdateDatasetProposal(accepted)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: send email to Dataset Proposal author/originator
+
+	// TODO: create dataset
+	// - set dataset proposal submitter as the dataset owner
+	// - invite all dataset proposal contributors to the dataset
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
