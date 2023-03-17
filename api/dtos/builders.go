@@ -108,6 +108,9 @@ func BuildDatasetProposalDTO(proposal *models.DatasetProposal) DatasetProposalDT
 		CreatedAt:          proposal.CreatedAt,
 		UpdatedAt:          proposal.UpdatedAt,
 		SubmittedAt:        proposal.SubmittedAt,
+		WithdrawnAt:        proposal.WithdrawnAt,
+		AcceptedAt:         proposal.AcceptedAt,
+		RejectedAt:         proposal.RejectedAt,
 	}
 }
 
