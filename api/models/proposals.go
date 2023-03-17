@@ -21,6 +21,7 @@ type DatasetProposal struct {
 	UpdatedAt          int64         `dynamodbav:"UpdatedAt"`
 	SubmittedAt        int64         `dynamodbav:"SubmittedAt"`
 	AcceptedAt         int64         `dynamodbav:"AcceptedAt"`
+	RejectedAt         int64         `dynamodbav:"RejectedAt"`
 }
 
 type DatasetProposalKey struct {

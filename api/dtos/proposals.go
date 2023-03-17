@@ -21,6 +21,7 @@ type DatasetProposalDTO struct {
 	UpdatedAt          int64            `json:"updatedAt"`
 	SubmittedAt        int64            `json:"submittedAt"`
 	AcceptedAt         int64            `json:"acceptedAt"`
+	RejectedAt         int64            `json:"rejectedAt"`
 }
 
 type DatasetSubmissionsDTO struct {
