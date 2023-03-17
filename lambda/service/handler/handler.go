@@ -382,7 +382,32 @@ func handleSubmitDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 func handleWithdrawDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
 	log.WithFields(log.Fields{}).Debug("handleWithdrawDatasetProposal()")
 
-	return nil, 501
+	var err error
+	var nodeId string
+	var found bool
+
+	// get ProposalNodeId from request query parameters
+	queryParams := request.QueryStringParameters
+	if nodeId, found = queryParams["node_id"]; !found {
+		return nil, 400
+	}
+
+	userId := int(claims.UserClaim.Id)
+
+	proposalDTO, err := service.WithdrawDatasetProposal(userId, nodeId)
+	if err != nil {
+		return nil, 400
+	}
+	log.WithFields(log.Fields{"proposalDTO": fmt.Sprintf("%+v", proposalDTO)}).Debug("handleWithdrawDatasetProposal() withdrew proposal")
+
+	jsonBody, err := json.Marshal(proposalDTO)
+	if err != nil {
+		log.Error("json.Marshal() failed: ", err)
+		return nil, 500
+	}
+
+	return jsonBody, 200
+
 }
 
 func handleAcceptDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {

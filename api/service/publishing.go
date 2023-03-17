@@ -20,6 +20,7 @@ type PublishingService interface {
 	UpdateDatasetProposal(userId int, existing dtos.DatasetProposalDTO, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	DeleteDatasetProposal(proposal dtos.DatasetProposalDTO) (bool, error)
 	SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error)
+	WithdrawDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error)
 	AcceptDatasetProposal(repositoryId int, nodeId string) (*dtos.DatasetProposalDTO, error)
 	RejectDatasetProposal(repositoryId int, nodeId string) (*dtos.DatasetProposalDTO, error)
 }
@@ -280,6 +281,39 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 	submitted.SubmittedAt = currentTime
 
 	updated, err := s.store.UpdateDatasetProposal(submitted)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: send email to Repository Publishers Team
+
+	dtoResult := dtos.BuildDatasetProposalDTO(updated)
+	return &dtoResult, nil
+}
+
+func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.WithdrawDatasetProposal()")
+
+	// get Dataset Proposal by User Id and Node Id
+	proposal, err := s.store.GetDatasetProposal(userId, nodeId)
+	if err != nil {
+		return nil, err
+	}
+	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.WithdrawDatasetProposal()")
+
+	// verify that the Dataset Proposal Status is “DRAFT”
+	if proposal.ProposalStatus != "SUBMITTED" {
+		return nil, fmt.Errorf("invalid action: proposal.status must be SUBMITTED in order to withdraw")
+	}
+
+	// update Dataset Proposal
+	currentTime := time.Now().Unix()
+	withdrawn := proposal
+	withdrawn.ProposalStatus = "WITHDRAWN"
+	withdrawn.UpdatedAt = currentTime
+	withdrawn.WithdrawnAt = currentTime
+
+	updated, err := s.store.UpdateDatasetProposal(withdrawn)
 	if err != nil {
 		return nil, err
 	}
