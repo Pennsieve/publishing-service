@@ -51,6 +51,7 @@ services:
     command: "-jar DynamoDBLocal.jar"
     networks:
       - api-tests
+
   dynamodb-ci:
     image: amazon/dynamodb-local
     restart: always
