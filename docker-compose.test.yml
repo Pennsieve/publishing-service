@@ -8,7 +8,7 @@ services:
   # Test Container for running tests locally
   # You can also run the NEO4J container with "make start-neo4j-empty" and use "go test ./..."
   # to test outside of docker.
-  local_tests:
+  local-tests:
     build:
       context: .
       dockerfile: Dockerfile.test
