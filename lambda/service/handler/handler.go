@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/events"
@@ -16,8 +15,6 @@ import (
 	"regexp"
 )
 
-var PennsieveDB *sql.DB
-
 func init() {
 	log.SetFormatter(&log.JSONFormatter{})
 	ll, err := log.ParseLevel(os.Getenv("LOG_LEVEL"))
@@ -26,13 +23,6 @@ func init() {
 	} else {
 		log.SetLevel(ll)
 	}
-
-	db, err := pgdb.ConnectRDS()
-	if err != nil {
-		panic(fmt.Sprintf("unable to connect to RDS database: %s", err))
-	}
-	log.Info("connected to RDS database")
-	PennsieveDB = db
 }
 
 func PublishingServiceHandler(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
@@ -47,16 +37,23 @@ func PublishingServiceHandler(request events.APIGatewayV2HTTPRequest) (*events.A
 }
 
 func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
-	log.Println("handleRequest()")
+	log.Info("handleRequest()")
 
 	var err error
 	var statusCode int
 	var jsonBody []byte
 
 	claims := authorizer.ParseClaims(request.RequestContext.Authorizer.Lambda)
+	orgId := claims.OrgClaim.IntId
+
+	db, err := pgdb.ConnectRDSWithOrg(int(orgId))
+	if err != nil {
+		panic(fmt.Sprintf("unable to connect to RDS database: %s", err))
+	}
+	log.Info("connected to RDS database")
 
 	pubStore := store.NewPublishingStore()
-	pennsieve := store.NewPennsieveStore(PennsieveDB, claims.OrgClaim.IntId)
+	pennsieve := store.NewPennsieveStore(db, orgId)
 	service := service.NewPublishingService(pubStore, pennsieve)
 
 	r := regexp.MustCompile(`(?P<method>) (?P<pathKey>.*)`)
