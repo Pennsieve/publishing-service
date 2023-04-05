@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/pennsieve/publishing-service/api/dtos"
@@ -25,14 +26,16 @@ type PublishingService interface {
 	RejectDatasetProposal(repositoryId int, nodeId string) (*dtos.DatasetProposalDTO, error)
 }
 
-func NewPublishingService(store store.PublishingStore) *publishingService {
+func NewPublishingService(pubStore store.PublishingStore, pennsieve store.PennsievePublishingStore) *publishingService {
 	return &publishingService{
-		store: store,
+		store:     pubStore,
+		pennsieve: pennsieve,
 	}
 }
 
 type publishingService struct {
-	store store.PublishingStore
+	store     store.PublishingStore
+	pennsieve store.PennsievePublishingStore
 }
 
 func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, error) {
@@ -339,12 +342,21 @@ func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId strin
 		return nil, fmt.Errorf("invalid action: proposal.status must be SUBMITTED in order to accept")
 	}
 
+	// create dataset
+	result, err := s.pennsieve.CreateDatasetForAcceptedProposal(context.TODO(), proposal)
+	if err != nil {
+		return nil, fmt.Errorf(fmt.Sprintf("failed to CreateDatasetForAcceptedProposal (error: %+v)", err))
+	}
+	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("service.AcceptDatasetProposal()")
+
 	// update Dataset Proposal
 	// - set Status = “ACCEPTED”
 	// - set AcceptedAt = current time
 	currentTime := time.Now().Unix()
 	accepted := proposal
 	accepted.ProposalStatus = "ACCEPTED"
+	accepted.DatasetNodeId = result.Dataset.NodeId.String
+	accepted.OrganizationNodeId = result.Organization.NodeId
 	accepted.UpdatedAt = currentTime
 	accepted.AcceptedAt = currentTime
 
@@ -354,10 +366,6 @@ func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId strin
 	}
 
 	// TODO: send email to Dataset Proposal author/originator
-
-	// TODO: create dataset
-	// - set dataset proposal submitter as the dataset owner
-	// - invite all dataset proposal contributors to the dataset
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil

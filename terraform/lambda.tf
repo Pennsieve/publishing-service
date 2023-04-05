@@ -17,11 +17,12 @@ resource "aws_lambda_function" "service_lambda" {
   environment {
     variables = {
       ENV = var.environment_name
-      PENNSIEVE_DOMAIN = data.terraform_remote_state.account.outputs.domain_name,
-      REGION = var.aws_region,
+      PENNSIEVE_DOMAIN = data.terraform_remote_state.account.outputs.domain_name
+      REGION = var.aws_region
       REPOSITORIES_TABLE = aws_dynamodb_table.repositories_dynamo_table.name
       REPOSITORY_QUESTIONS_TABLE = aws_dynamodb_table.repository_questions_dynamo_table.name
       DATASET_PROPOSAL_TABLE = aws_dynamodb_table.dataset_proposals_dynamo_table.name
+      RDS_PROXY_ENDPOINT        = data.terraform_remote_state.pennsieve_postgres.outputs.rds_proxy_endpoint
     }
   }
 }

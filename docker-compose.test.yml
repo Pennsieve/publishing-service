@@ -8,12 +8,18 @@ services:
   # Test Container for running tests locally
   # You can also run the NEO4J container with "make start-neo4j-empty" and use "go test ./..."
   # to test outside of docker.
-  local_tests:
+  local-tests:
     build:
       context: .
       dockerfile: Dockerfile.test
+    depends_on:
+      - dynamodb
+      - pennsievedb
     env_file:
       - dockertest.env
+    environment:
+      - DYNAMODB_URL=http://dynamodb:8000
+      - POSTGRES_HOST=pennsievedb
     volumes:
       - $PWD:/go/src/github.com/pennsieve/publishing-service
     networks:
@@ -24,9 +30,45 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.test
+    depends_on:
+      - dynamodb-ci
+      - pennsievedb-ci
     env_file:
       - dockertest.env
+    environment:
+      - DYNAMODB_URL=http://dynamodb-ci:8000
+      - POSTGRES_HOST=pennsievedb-ci
     volumes:
       - $PWD:/go/src/github.com/pennsieve/publishing-service
+    networks:
+      - api-tests
+
+  dynamodb:
+    image: amazon/dynamodb-local
+    restart: always
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar"
+    networks:
+      - api-tests
+
+  dynamodb-ci:
+    image: amazon/dynamodb-local
+    restart: always
+    command: "-jar DynamoDBLocal.jar"
+    networks:
+      - api-tests
+
+  pennsievedb:
+    image: pennsieve/pennsievedb:V20230315145959-seed
+    restart: always
+    ports:
+      - "5432:5432"
+    networks:
+      - api-tests
+
+  pennsievedb-ci:
+    image: pennsieve/pennsievedb:V20230315145959-seed
+    restart: always
     networks:
       - api-tests

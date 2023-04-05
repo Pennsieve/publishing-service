@@ -20,23 +20,18 @@ help:
 # Run dockerized tests (can be used locally)
 test:
 	docker-compose -f docker-compose.test.yml down --remove-orphans
-	mkdir -p data conf
-	chmod -R 777 data conf
-	docker-compose -f docker-compose.test.yml up --exit-code-from local_tests local_tests
-	make clean
+	docker-compose -f docker-compose.test.yml up --exit-code-from local-tests local-tests
 
 # Run dockerized tests (used on Jenkins)
 test-ci:
+	mkdir -p test-dynamodb-data
+	chmod -R 777 test-dynamodb-data
 	docker-compose -f docker-compose.test.yml down --remove-orphans
-	mkdir -p data plugins conf logs
-	chmod -R 777 conf
-	@IMAGE_TAG=$(IMAGE_TAG) docker-compose -f docker-compose.test.yml up --exit-code-from=ci-tests ci-tests
+	docker-compose -f docker-compose.test.yml up --exit-code-from ci-tests ci-tests
 
 # Remove folders created by NEO4J docker container
 clean: docker-clean
-	rm -rf conf
-	rm -rf data
-	rm -rf plugins
+	rm -rf test-dynamodb-data
 
 # Spin down active docker containers.
 docker-clean:
