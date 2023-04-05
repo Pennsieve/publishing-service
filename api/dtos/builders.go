@@ -103,6 +103,7 @@ func BuildDatasetProposalDTO(proposal *models.DatasetProposal) DatasetProposalDT
 		RepositoryId:       proposal.RepositoryId,
 		OrganizationNodeId: proposal.OrganizationNodeId,
 		ProposalStatus:     proposal.ProposalStatus,
+		DatasetNodeId:      proposal.DatasetNodeId,
 		Survey:             surveyDTOs,
 		Contributors:       contributorDTOs,
 		CreatedAt:          proposal.CreatedAt,
