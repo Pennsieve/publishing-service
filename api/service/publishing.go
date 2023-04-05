@@ -347,6 +347,7 @@ func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId strin
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("failed to CreateDatasetForAcceptedProposal (error: %+v)", err))
 	}
+	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("service.AcceptDatasetProposal()")
 
 	// update Dataset Proposal
 	// - set Status = “ACCEPTED”

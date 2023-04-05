@@ -7,6 +7,7 @@ import (
 	model "github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/pennsieve-go-core/pkg/queries/pgdb"
 	"github.com/pennsieve/publishing-service/api/models"
+	log "github.com/sirupsen/logrus"
 )
 
 type PennsievePublishingStore interface {
@@ -39,6 +40,8 @@ type CreatedDataset struct {
 }
 
 func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error) {
+	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Info("pennsieveStore.CreateDatasetForAcceptedProposal()")
+
 	var err error
 
 	// Get the Pennsieve User
@@ -81,6 +84,7 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("failed to CreateDataset (error: %+v)", err))
 	}
+	log.WithFields(log.Fields{"dataset": fmt.Sprintf("%+v", dataset)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
 
 	contributor, err := p.q.AddContributor(ctx, pgdb.NewContributor{
 		FirstName:     user.FirstName,
