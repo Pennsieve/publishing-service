@@ -44,6 +44,13 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 
 	var err error
 
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		log.WithFields(log.Fields{"failure": "BeginTx", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
+		return nil, fmt.Errorf(fmt.Sprintf("failed to begin database transaction (error: %+v)", err))
+	}
+	defer tx.Rollback()
+
 	// Get the Pennsieve User
 	user, err := p.q.GetUserById(ctx, int64(proposal.UserId))
 	if err != nil {
@@ -122,6 +129,11 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 		return nil, fmt.Errorf(fmt.Sprintf("failed to AddDatasetUser (error: %+v)", err))
 	}
 	log.WithFields(log.Fields{"datasetUser": fmt.Sprintf("%+v", datasetUser)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
+
+	if err = tx.Commit(); err != nil {
+		log.WithFields(log.Fields{"failure": "Commit()", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
+		return nil, fmt.Errorf(fmt.Sprintf("failed to commit database transaction (error: %+v)", err))
+	}
 
 	return &CreatedDataset{
 		User:         user,
