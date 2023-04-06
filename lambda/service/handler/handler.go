@@ -50,7 +50,8 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 	if err != nil {
 		panic(fmt.Sprintf("unable to connect to RDS database: %s", err))
 	}
-	log.Info("connected to RDS database")
+	log.WithFields(log.Fields{"orgId": orgId, "resource": "database", "action": "connect"}).Info("connected to RDS database")
+	defer db.Close()
 
 	pubStore := store.NewPublishingStore()
 	pennsieve := store.NewPennsieveStore(db, orgId)
