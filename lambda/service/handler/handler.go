@@ -433,6 +433,7 @@ func handleAcceptDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 
 	proposalDTO, err := service.AcceptDatasetProposal(int(repositoryId), nodeId)
 	if err != nil {
+		log.WithFields(log.Fields{"failure": "AcceptDatasetProposal", "err": fmt.Sprintf("%+v", err)}).Error("handleAcceptDatasetProposal()")
 		return nil, 400
 	}
 	log.WithFields(log.Fields{"proposalDTO": fmt.Sprintf("%+v", proposalDTO)}).Debug("handleAcceptDatasetProposal() accepted proposal")

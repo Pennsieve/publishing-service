@@ -345,6 +345,7 @@ func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId strin
 	// create dataset
 	result, err := s.pennsieve.CreateDatasetForAcceptedProposal(context.TODO(), proposal)
 	if err != nil {
+		log.WithFields(log.Fields{"failure": "CreateDatasetForAcceptedProposal", "err": fmt.Sprintf("%+v", err)}).Error("service.AcceptDatasetProposal()")
 		return nil, fmt.Errorf(fmt.Sprintf("failed to CreateDatasetForAcceptedProposal (error: %+v)", err))
 	}
 	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("service.AcceptDatasetProposal()")
