@@ -98,13 +98,10 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 	log.WithFields(log.Fields{"dataset": fmt.Sprintf("%+v", dataset)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
 
 	contributor, err := p.q.AddContributor(ctx, pgdb.NewContributor{
-		FirstName:     user.FirstName,
-		MiddleInitial: "",
-		LastName:      user.LastName,
-		Degree:        "",
-		EmailAddress:  user.Email,
-		Orcid:         "",
-		UserId:        user.Id,
+		FirstName:    user.FirstName,
+		LastName:     user.LastName,
+		EmailAddress: user.Email,
+		UserId:       user.Id,
 	})
 	if err != nil {
 		log.WithFields(log.Fields{"failure": "AddContributor", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
