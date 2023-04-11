@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset"
 	model "github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/pennsieve-go-core/pkg/queries/pgdb"
 	"github.com/pennsieve/publishing-service/api/models"
 	log "github.com/sirupsen/logrus"
+	"strings"
 )
 
 type PennsievePublishingStore interface {
@@ -83,6 +85,106 @@ func (p *pennsieveStore) ExecStoreTx(ctx context.Context, orgId int64, fn func(s
 	return tx.Commit()
 }
 
+func datasetRoleToPermission(role dataset.Role) model.DbPermission {
+	var result model.DbPermission
+
+	switch role {
+	case dataset.None:
+		result = model.NoPermission
+	case dataset.Viewer:
+		result = model.Read
+	case dataset.Editor:
+		result = model.Delete
+	case dataset.Manager:
+		result = model.Administer
+	case dataset.Owner:
+		result = model.Owner
+	default:
+		result = model.NoPermission
+	}
+
+	log.WithFields(log.Fields{"role": role, "result": result}).Debug("datasetRoleToPermission()")
+	return result
+}
+
+func (p *pennsieveStore) addDatasetUser(ctx context.Context, dataset *model.Dataset, user *model.User, role dataset.Role) (*model.DatasetUser, error) {
+	log.WithFields(log.Fields{
+		"dataset": fmt.Sprintf("%+v", dataset),
+		"user":    fmt.Sprintf("%+v", user),
+		"role":    role},
+	).Debug("pennsieveStore.addDatasetUser()")
+
+	existing, err := p.q.GetDatasetUser(ctx, dataset, user)
+	log.WithFields(log.Fields{
+		"call":     "GetDatasetUser()",
+		"existing": fmt.Sprintf("%+v", existing),
+		"err":      fmt.Sprintf("%+v", err)},
+	).Debug("pennsieveStore.addDatasetUser()")
+	if err != nil {
+		switch err.(type) {
+		case pgdb.DatasetUserNotFoundError:
+			log.WithFields(log.Fields{
+				"call":   "GetDatasetUser()",
+				"result": "DatasetUserNotFoundError"},
+			).Debug("pennsieveStore.addDatasetUser()")
+			// do nothing
+		default:
+			log.WithFields(log.Fields{
+				"call":   "GetDatasetUser()",
+				"return": "err",
+				"err":    fmt.Sprintf("%+v", err)},
+			).Debug("pennsieveStore.addDatasetUser()")
+			return nil, err
+		}
+	}
+
+	if existing != nil {
+		log.WithFields(log.Fields{"return": "existing"}).Debug("pennsieveStore.addDatasetUser()")
+		return existing, nil
+	}
+
+	statement := "INSERT INTO dataset_user (dataset_id, user_id, role, permission_bit) VALUES ($1, $2, $3, $4)"
+	log.WithFields(log.Fields{"statement": statement,
+		"dataset_id":     dataset.Id,
+		"user_id":        user.Id,
+		"role":           strings.ToLower(role.String()),
+		"permission_bit": datasetRoleToPermission(role)},
+	).Debug("pennsieveStore.addDatasetUser()")
+
+	result, err := p.db.ExecContext(ctx, statement, dataset.Id, user.Id, strings.ToLower(role.String()), datasetRoleToPermission(role))
+	log.WithFields(log.Fields{
+		"call":   "ExecContext()",
+		"result": fmt.Sprintf("%+v", result),
+		"err":    fmt.Sprintf("%+v", err)},
+	).Debug("pennsieveStore.addDatasetUser()")
+	if err != nil {
+		log.WithFields(log.Fields{
+			"call":   "ExecContext()",
+			"return": "err",
+			"err":    fmt.Sprintf("%+v", err)},
+		).Debug("pennsieveStore.addDatasetUser()")
+		return nil, err
+	}
+
+	added, err := p.q.GetDatasetUser(ctx, dataset, user)
+	log.WithFields(log.Fields{
+		"call":  "GetDatasetUser()",
+		"added": fmt.Sprintf("%+v", added),
+		"err":   fmt.Sprintf("%+v", err)},
+	).Debug("pennsieveStore.addDatasetUser()")
+	if err != nil {
+		log.WithFields(log.Fields{
+			"call":   "GetDatasetUser()",
+			"return": "err",
+			"err":    fmt.Sprintf("%+v", err),
+		}).Debug("pennsieveStore.addDatasetUser()")
+		return nil, err
+	}
+	log.WithFields(log.Fields{"return": "added"}).Debug("pennsieveStore.addDatasetUser()")
+
+	return added, nil
+}
+
 func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error) {
 	var err error
 
@@ -151,12 +253,12 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 		log.WithFields(log.Fields{"failure": "CreateDataset", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
 		return nil, fmt.Errorf(fmt.Sprintf("failed to CreateDataset (error: %+v)", err))
 	}
-	dataset, err := p.q.GetDatasetByName(ctx, proposal.Name)
+	ds, err := p.q.GetDatasetByName(ctx, proposal.Name)
 	if err != nil {
 		log.WithFields(log.Fields{"failure": "GetDatasetByName", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
 		return nil, fmt.Errorf(fmt.Sprintf("failed to GetDatasetByName (error: %+v)", err))
 	}
-	log.WithFields(log.Fields{"dataset": fmt.Sprintf("%+v", dataset)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
+	log.WithFields(log.Fields{"ds": fmt.Sprintf("%+v", ds)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
 
 	// create the contributor record
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdb.Queries) error {
@@ -181,14 +283,14 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 
 	// attach the contributor to the dataset
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdb.Queries) error {
-		_, err := p.q.AddDatasetContributor(ctx, dataset, contributor)
+		_, err := p.q.AddDatasetContributor(ctx, ds, contributor)
 		return err
 	})
 	if err != nil {
 		log.WithFields(log.Fields{"failure": "AddDatasetContributor", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
 		return nil, fmt.Errorf(fmt.Sprintf("failed to AddDatasetContributor (error: %+v)", err))
 	}
-	datasetContributor, err := p.q.GetDatasetContributor(ctx, dataset.Id, contributor.Id)
+	datasetContributor, err := p.q.GetDatasetContributor(ctx, ds.Id, contributor.Id)
 	if err != nil {
 		log.WithFields(log.Fields{"failure": "GetDatasetContributor", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
 		return nil, fmt.Errorf(fmt.Sprintf("failed to GetDatasetContributor (error: %+v)", err))
@@ -197,14 +299,14 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 
 	// add the user to the dataset as the owner
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdb.Queries) error {
-		_, err := store.AddDatasetUser(ctx, dataset, user, model.Owner)
+		_, err := p.addDatasetUser(ctx, ds, user, model.Owner)
 		return err
 	})
 	if err != nil {
 		log.WithFields(log.Fields{"failure": "AddDatasetUser", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
 		return nil, fmt.Errorf(fmt.Sprintf("failed to AddDatasetUser (error: %+v)", err))
 	}
-	datasetUser, err := p.q.GetDatasetUser(ctx, dataset, user)
+	datasetUser, err := p.q.GetDatasetUser(ctx, ds, user)
 	if err != nil {
 		log.WithFields(log.Fields{"failure": "GetDatasetUser", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
 		return nil, fmt.Errorf(fmt.Sprintf("failed to GetDatasetUser (error: %+v)", err))
@@ -214,7 +316,7 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 	return &CreatedDataset{
 		User:         user,
 		Organization: organization,
-		Dataset:      dataset,
+		Dataset:      ds,
 	}, nil
 }
 
