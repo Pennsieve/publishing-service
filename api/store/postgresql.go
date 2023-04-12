@@ -181,7 +181,7 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 
 	// attach the contributor to the dataset
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdbQueries.Queries) error {
-		_, err := p.q.AddDatasetContributor(ctx, ds, contributor)
+		_, err := store.AddDatasetContributor(ctx, ds, contributor)
 		return err
 	})
 	if err != nil {
