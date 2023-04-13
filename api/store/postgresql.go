@@ -197,7 +197,7 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 
 	// add the user to the dataset as the owner
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdbQueries.Queries) error {
-		_, err := p.q.AddDatasetUser(ctx, ds, user, role.Owner)
+		_, err := store.AddDatasetUser(ctx, ds, user, role.Owner)
 		return err
 	})
 	if err != nil {
