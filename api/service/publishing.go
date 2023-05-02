@@ -12,6 +12,7 @@ import (
 )
 
 type PublishingService interface {
+	GetPublishingInfo() ([]dtos.InfoDTO, error)
 	GetPublishingRepositories() ([]dtos.RepositoryDTO, error)
 	GetProposalQuestions() ([]dtos.QuestionDTO, error)
 	GetDatasetProposal(userId int, nodeId string) (dtos.DatasetProposalDTO, error)
@@ -36,6 +37,24 @@ func NewPublishingService(pubStore store.PublishingStore, pennsieve store.Pennsi
 type publishingService struct {
 	store     store.PublishingStore
 	pennsieve store.PennsievePublishingStore
+}
+
+func (s *publishingService) GetPublishingInfo() ([]dtos.InfoDTO, error) {
+	log.Println("GetPublishingInfo()")
+	var err error
+
+	info, err := s.store.GetInfo()
+	if err != nil {
+		log.Fatalln("GetPublishingInfo() store.GetInfo() err: ", err)
+		return nil, err
+	}
+
+	var infoDTOs []dtos.InfoDTO
+	for i := 0; i < len(info); i++ {
+		infoDTOs = append(infoDTOs, dtos.BuildInfoDTO(info[i]))
+	}
+
+	return infoDTOs, nil
 }
 
 func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, error) {
