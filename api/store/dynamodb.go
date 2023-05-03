@@ -14,6 +14,7 @@ import (
 )
 
 type PublishingStore interface {
+	GetInfo() ([]models.Info, error)
 	GetRepositories() ([]models.Repository, error)
 	GetRepository(organizationNodeId string) (*models.Repository, error)
 	GetQuestions() ([]models.Question, error)
@@ -42,6 +43,7 @@ func NewPublishingStore() *publishingStore {
 
 	return &publishingStore{
 		db:                    db,
+		infoTable:             getTableName("PUBLISHING_INFO_TABLE"),
 		repositoriesTable:     getTableName("REPOSITORIES_TABLE"),
 		questionsTable:        getTableName("REPOSITORY_QUESTIONS_TABLE"),
 		datasetProposalsTable: getTableName("DATASET_PROPOSAL_TABLE"),
@@ -50,6 +52,7 @@ func NewPublishingStore() *publishingStore {
 
 type publishingStore struct {
 	db                    *dynamodb.Client
+	infoTable             string
 	repositoriesTable     string
 	questionsTable        string
 	datasetProposalsTable string
@@ -92,7 +95,7 @@ func query(client *dynamodb.Client, queryInput *dynamodb.QueryInput) (*dynamodb.
 }
 
 type PublishingTypes interface {
-	models.Repository | models.Question | models.DatasetProposal
+	models.Info | models.Repository | models.Question | models.DatasetProposal
 }
 
 // TODO: figure out struct embedding to simplify list of types allowed?
@@ -185,6 +188,11 @@ func store(client *dynamodb.Client, table string, item *models.DatasetProposal) 
 		TableName: aws.String(table),
 		Item:      data,
 	})
+}
+
+func (s *publishingStore) GetInfo() ([]models.Info, error) {
+	log.Info("store.GetInfo()")
+	return fetch[models.Info](s.db, s.infoTable)
 }
 
 func (s *publishingStore) GetRepositories() ([]models.Repository, error) {

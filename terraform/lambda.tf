@@ -19,6 +19,7 @@ resource "aws_lambda_function" "service_lambda" {
       ENV = var.environment_name
       PENNSIEVE_DOMAIN = data.terraform_remote_state.account.outputs.domain_name
       REGION = var.aws_region
+      PUBLISHING_INFO_TABLE = aws_dynamodb_table.publishing_info_dynamo_table.name
       REPOSITORIES_TABLE = aws_dynamodb_table.repositories_dynamo_table.name
       REPOSITORY_QUESTIONS_TABLE = aws_dynamodb_table.repository_questions_dynamo_table.name
       DATASET_PROPOSAL_TABLE = aws_dynamodb_table.dataset_proposals_dynamo_table.name

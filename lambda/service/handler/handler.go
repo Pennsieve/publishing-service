@@ -74,6 +74,11 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 	// TODO: figure out authorization
 
 	switch routeKey {
+	case "/publishing/info":
+		switch httpMethod {
+		case "GET":
+			jsonBody, statusCode = handleGetPublishingInfo(service)
+		}
 	case "/publishing/repositories":
 		switch httpMethod {
 		case "GET":
@@ -146,18 +151,21 @@ func authorized() bool {
 	return true
 }
 
-//func handleTheRequest() ([]byte, int) {
-//	// invoke service.Function()
-//	// check return; map err to HTTP Status code
-//
-//	// marshall service response
-//	jsonBody, err := json.Marshal(nil)
-//	if err != nil {
-//		return nil, 500
-//	}
-//	statusCode := 200
-//	return jsonBody, statusCode
-//}
+func handleGetPublishingInfo(service service.PublishingService) ([]byte, int) {
+	result, err := service.GetPublishingInfo()
+	if err != nil {
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
+	}
+
+	jsonBody, err := json.Marshal(result)
+	if err != nil {
+		// TODO: provide a better response than nil on a 500
+		return nil, 500
+	}
+
+	return jsonBody, 200
+}
 
 func handleGetPublishingRepositories(service service.PublishingService) ([]byte, int) {
 	result, err := service.GetPublishingRepositories()
