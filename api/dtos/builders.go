@@ -48,14 +48,15 @@ func BuildInfoDTO(info models.Info) InfoDTO {
 	presigner := s3.MakePresigner()
 
 	document, _ := presigner.GetObject(
-		info.Document.S3Bucket,
-		info.Document.S3Key,
+		info.File.S3Bucket,
+		info.File.S3Key,
 		12*3600, // 12 hours
 	)
 
 	return InfoDTO{
-		Tag: info.Tag,
-		URL: document.URL,
+		Tag:  info.Tag,
+		Type: info.Type,
+		URL:  document.URL,
 	}
 }
 
