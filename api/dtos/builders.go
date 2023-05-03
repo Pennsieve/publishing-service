@@ -47,7 +47,7 @@ func BuildContributor(contributor ContributorDTO) models.Contributor {
 func BuildInfoDTO(info models.Info) InfoDTO {
 	presigner := s3.MakePresigner()
 
-	document, _ := presigner.GetObject(
+	file, _ := presigner.GetObject(
 		info.File.S3Bucket,
 		info.File.S3Key,
 		12*3600, // 12 hours
@@ -56,7 +56,7 @@ func BuildInfoDTO(info models.Info) InfoDTO {
 	return InfoDTO{
 		Tag:  info.Tag,
 		Type: info.Type,
-		URL:  document.URL,
+		URL:  file.URL,
 	}
 }
 
