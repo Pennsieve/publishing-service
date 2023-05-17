@@ -12,6 +12,7 @@ import (
 )
 
 type PennsievePublishingStore interface {
+	GetProposalUser(ctx context.Context, userId int64) (*pgdbModels.User, error)
 	CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error)
 }
 
@@ -81,6 +82,10 @@ func (p *pennsieveStore) ExecStoreTx(ctx context.Context, orgId int64, fn func(s
 	}
 
 	return tx.Commit()
+}
+
+func (p *pennsieveStore) GetProposalUser(ctx context.Context, userId int64) (*pgdbModels.User, error) {
+	return p.q.GetUserById(ctx, userId)
 }
 
 func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error) {

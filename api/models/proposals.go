@@ -9,6 +9,7 @@ type DatasetProposal struct {
 	UserId             int           `dynamodbav:"UserId"`
 	NodeId             string        `dynamodbav:"NodeId"`
 	OwnerName          string        `dynamodbav:"OwnerName"`
+	EmailAddress       string        `dynamodbav:"EmailAddress"`
 	Name               string        `dynamodbav:"Name"`
 	Description        string        `dynamodbav:"Description"`
 	RepositoryId       int           `dynamodbav:"RepositoryId"`
