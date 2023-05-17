@@ -267,7 +267,7 @@ func handleCreateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	json.Unmarshal(bytes, &requestDTO)
 	log.WithFields(log.Fields{"requestDTO": fmt.Sprintf("%+v", requestDTO)}).Debug("handleCreateDatasetProposal()")
 
-	resultDTO, err := service.CreateDatasetProposal(int(claims.UserClaim.Id), requestDTO)
+	resultDTO, err := service.CreateDatasetProposal(claims.UserClaim.Id, requestDTO)
 	if err != nil {
 		log.Fatalln("handleCreateDatasetProposal() - service.CreateDatasetProposal() failed: ", err)
 		return nil, 500
@@ -316,7 +316,7 @@ func handleUpdateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	}
 
 	// if it exists, then invoke update
-	resultDTO, err := service.UpdateDatasetProposal(int(claims.UserClaim.Id), proposal, requestDTO)
+	resultDTO, err := service.UpdateDatasetProposal(claims.UserClaim.Id, proposal, requestDTO)
 	if err != nil {
 		log.Error("service.UpdateDatasetProposal() failed: ", err)
 		return nil, 500

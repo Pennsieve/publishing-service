@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	pgdbModels "github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/publishing-service/api/dtos"
 	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/store"
@@ -18,8 +19,8 @@ type PublishingService interface {
 	GetDatasetProposal(userId int, nodeId string) (dtos.DatasetProposalDTO, error)
 	GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error)
 	GetDatasetProposalsForWorkspace(id int64, status string) ([]dtos.DatasetProposalDTO, error)
-	CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
-	UpdateDatasetProposal(userId int, existing dtos.DatasetProposalDTO, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
+	CreateDatasetProposal(userId int64, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
+	UpdateDatasetProposal(userId int64, existing dtos.DatasetProposalDTO, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	DeleteDatasetProposal(proposal dtos.DatasetProposalDTO) (bool, error)
 	SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error)
 	WithdrawDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error)
@@ -37,6 +38,10 @@ func NewPublishingService(pubStore store.PublishingStore, pennsieve store.Pennsi
 type publishingService struct {
 	store     store.PublishingStore
 	pennsieve store.PennsievePublishingStore
+}
+
+func usersName(user *pgdbModels.User) string {
+	return fmt.Sprintf("%s %s", user.FirstName, user.LastName)
 }
 
 func (s *publishingService) GetPublishingInfo() ([]dtos.InfoDTO, error) {
@@ -158,8 +163,14 @@ func (s *publishingService) GetDatasetProposalsForWorkspace(id int64, status str
 // TODO: validate RepositoryId, ensure it is in Repositories table
 // TODO: move generating ProposalNodeId string elsewhere (pennsieve-core?)
 // TODO: refactor Create..() and Update..() to use common code
-func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
+func (s *publishingService) CreateDatasetProposal(userId int64, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
 	log.Println("service.CreateDatasetProposal()")
+
+	user, err := s.pennsieve.GetProposalUser(context.TODO(), userId)
+	if err != nil {
+		log.WithFields(log.Fields{"failure": "pennsieve.GetProposalUser()", "error": fmt.Sprintf("%+v", err)}).Error("service.CreateDatasetProposal()")
+		return nil, err
+	}
 
 	var survey []models.Survey
 	for i := 0; i < len(dto.Survey); i++ {
@@ -174,9 +185,10 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 	currentTime := time.Now().Unix()
 
 	proposal := &models.DatasetProposal{
-		UserId:             userId,
+		UserId:             int(user.Id),
 		NodeId:             fmt.Sprintf("%s:%s:%s", "N", "proposal", uuid.NewString()),
-		OwnerName:          dto.OwnerName,
+		OwnerName:          usersName(user),
+		EmailAddress:       user.Email,
 		Name:               dto.Name,
 		Description:        dto.Description,
 		RepositoryId:       dto.RepositoryId,
@@ -189,7 +201,7 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 	}
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.CreateDatasetProposal()")
 
-	_, err := s.store.CreateDatasetProposal(proposal)
+	_, err = s.store.CreateDatasetProposal(proposal)
 	if err != nil {
 		log.Fatalln("service.CreateDatasetProposal() - store.CreateDatasetProposal() failed: ", err)
 		return nil, err
@@ -199,8 +211,14 @@ func (s *publishingService) CreateDatasetProposal(userId int, dto dtos.DatasetPr
 	return &dtoResult, nil
 }
 
-func (s *publishingService) UpdateDatasetProposal(userId int, existing dtos.DatasetProposalDTO, update dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
+func (s *publishingService) UpdateDatasetProposal(userId int64, existing dtos.DatasetProposalDTO, update dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
 	log.WithFields(log.Fields{"userId": userId, "existing": fmt.Sprintf("%+v", existing), "update": fmt.Sprintf("%+v", update)}).Info("service.UpdateDatasetProposal()")
+
+	user, err := s.pennsieve.GetProposalUser(context.TODO(), userId)
+	if err != nil {
+		log.WithFields(log.Fields{"failure": "pennsieve.GetProposalUser()", "error": fmt.Sprintf("%+v", err)}).Error("service.UpdateDatasetProposal()")
+		return nil, err
+	}
 
 	var survey []models.Survey
 	for i := 0; i < len(update.Survey); i++ {
@@ -215,9 +233,10 @@ func (s *publishingService) UpdateDatasetProposal(userId int, existing dtos.Data
 	currentTime := time.Now().Unix()
 
 	updated := &models.DatasetProposal{
-		UserId:             userId,
+		UserId:             int(user.Id),
 		NodeId:             existing.NodeId,
-		OwnerName:          update.OwnerName,
+		OwnerName:          usersName(user),
+		EmailAddress:       user.Email,
 		Name:               update.Name,
 		Description:        update.Description,
 		RepositoryId:       existing.RepositoryId,
@@ -230,7 +249,7 @@ func (s *publishingService) UpdateDatasetProposal(userId int, existing dtos.Data
 	}
 	log.WithFields(log.Fields{"updated": fmt.Sprintf("%+v", updated)}).Debug("service.UpdateDatasetProposal()")
 
-	_, err := s.store.UpdateDatasetProposal(updated)
+	_, err = s.store.UpdateDatasetProposal(updated)
 	if err != nil {
 		log.Fatalln("store.UpdateDatasetProposal() failed: ", err)
 		return nil, err

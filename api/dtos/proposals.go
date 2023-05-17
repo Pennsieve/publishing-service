@@ -9,6 +9,7 @@ type DatasetProposalDTO struct {
 	UserId             int              `json:"userId"`
 	NodeId             string           `json:"nodeId"`
 	OwnerName          string           `json:"ownerName"`
+	EmailAddress       string           `json:"emailAddress"`
 	Name               string           `json:"name"`
 	Description        string           `json:"description"`
 	RepositoryId       int              `json:"repositoryId"`
