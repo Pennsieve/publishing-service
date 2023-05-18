@@ -440,11 +440,7 @@ func (s *publishingService) RejectDatasetProposal(repositoryId int, nodeId strin
 	}
 
 	// TODO: send email to Dataset Proposal author/originator
-
-	// TODO: create dataset
-	// - set dataset proposal submitter as the dataset owner
-	// - invite all dataset proposal contributors to the dataset
-
+	
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
 }
