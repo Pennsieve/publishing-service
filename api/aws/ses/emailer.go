@@ -1,87 +1,69 @@
 package ses
 
-import
 import (
+	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ses"
-	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ses"
+	"github.com/aws/aws-sdk-go-v2/service/ses/types"
 	log "github.com/sirupsen/logrus"
 )
-{
-	"github.com/aws/aws-sdk-go/service/ses"
-}
 
 func MakeEmailer() *Emailer {
-	sess, err := session.NewSession(&aws.Config{Region: aws.String("us-east-1")})
+	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
 		// TODO: handle error
 	}
-	svc := ses.New(sess)
+
+	client := ses.NewFromConfig(cfg)
 	return &Emailer{
-		Mailer: svc,
+		Client:  client,
 		CharSet: "UTF-8",
 	}
 }
 
 type Emailer struct {
-	Mailer *ses.SES
+	Client  *ses.Client
 	CharSet string
 }
 
 // TODO: make `to` an array of recipients
-func (emailer *Emailer) SendMessage(from string, to string, subject string, body string) error {
+func (emailer *Emailer) SendMessage(ctx context.Context, sender string, recipients []string, subject string, body string) error {
 	// compose email message
 	message := &ses.SendEmailInput{
-		ConfigurationSetName: nil,
-		Destination:          &ses.Destination{
-			CcAddresses: []*string{},
-			ToAddresses: []*string{aws.String(to),},
-			},
-		Message:              &ses.Message{
-			Body: &ses.Body{
-				//Html: &ses.Content{
-				//	Charset: aws.String(CharSet),
-				//	Data:    aws.String(HtmlBody),
-				//},
-				Text: &ses.Content{
-					Charset: aws.String(emailer.CharSet),
-					Data:    aws.String(body),
+		Destination: &types.Destination{
+			BccAddresses: nil,
+			CcAddresses:  nil,
+			ToAddresses:  recipients,
+		},
+		Message: &types.Message{
+			Body: &types.Body{
+				Html: nil,
+				Text: &types.Content{
+					Data:    &body,
+					Charset: &emailer.CharSet,
 				},
 			},
-			Subject: &ses.Content{
-				Charset: aws.String(emailer.CharSet),
-				Data:    aws.String(subject),
+			Subject: &types.Content{
+				Data:    &subject,
+				Charset: &emailer.CharSet,
 			},
 		},
+		Source:               &sender,
+		ConfigurationSetName: nil,
 		ReplyToAddresses:     nil,
 		ReturnPath:           nil,
 		ReturnPathArn:        nil,
-		Source:               aws.String(from),
 		SourceArn:            nil,
 		Tags:                 nil,
 	}
 
-	result, err := emailer.Mailer.SendEmail(message)
+	result, err := emailer.Client.SendEmail(ctx, message)
 	if err != nil {
-		if awsError, ok := err.(awserr.Error); ok {
-			switch awsError.Code() {
-			case ses.ErrCodeMessageRejected:
-				log.WithFields(log.Fields{"SendMessage":"error", "error":"Rejected", "reason":fmt.Sprintf("%+v",awsError.Error())}).Error("emailer.SendMessage()")
-			case ses.ErrCodeMailFromDomainNotVerifiedException:
-				log.WithFields(log.Fields{"SendMessage":"error", "error":"FromDomainNotVerified", "reason":fmt.Sprintf("%+v",awsError.Error())}).Error("emailer.SendMessage()")
-			case ses.ErrCodeConfigurationSetDoesNotExistException:
-				log.WithFields(log.Fields{"SendMessage":"error", "error":"ConfigurationSetDoesNotExist", "reason":fmt.Sprintf("%+v",awsError.Error())}).Error("emailer.SendMessage()")
-			default:
-				log.WithFields(log.Fields{"SendMessage":"error", "error":"(unspecified)", "reason":fmt.Sprintf("%+v",awsError.Error())}).Error("emailer.SendMessage()")
-			}
-		} else {
-			log.WithFields(log.Fields{"SendMessage":"error", "error":"(unspecified)", "reason":fmt.Sprintf("%+v",err.Error())}).Error("emailer.SendMessage()")
-		}
+		log.WithFields(log.Fields{"SendMessage": "failure", "error": fmt.Sprintf("%+v", err)}).Info("emailer.SendMessage()")
+		return err
 	}
 
-	log.WithFields(log.Fields{"SendMessage":"success", "result": fmt.Sprintf("%+v",result)}).Info("emailer.SendMessage()")
-
-	return err
+	log.WithFields(log.Fields{"SendMessage": "success", "result": fmt.Sprintf("%+v", result)}).Info("emailer.SendMessage()")
+	return nil
 }
