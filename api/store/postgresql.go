@@ -13,6 +13,8 @@ import (
 
 type PennsievePublishingStore interface {
 	GetProposalUser(ctx context.Context, userId int64) (*pgdbModels.User, error)
+	GetRepositoryWorkspace(ctx context.Context, repository *models.Repository) (*pgdbModels.Organization, error)
+	GetPublishingTeam(ctx context.Context, repository *models.Repository) ([]models.Publisher, error)
 	CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error)
 }
 
@@ -86,6 +88,62 @@ func (p *pennsieveStore) ExecStoreTx(ctx context.Context, orgId int64, fn func(s
 
 func (p *pennsieveStore) GetProposalUser(ctx context.Context, userId int64) (*pgdbModels.User, error) {
 	return p.q.GetUserById(ctx, userId)
+}
+
+func (p *pennsieveStore) GetRepositoryWorkspace(ctx context.Context, repository *models.Repository) (*pgdbModels.Organization, error) {
+	return p.q.GetOrganizationByNodeId(ctx, repository.OrganizationNodeId)
+}
+
+func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, repository *models.Repository) ([]models.Publisher, error) {
+	query := "select " +
+		"  o.id as Workspace_Id, " +
+		"  o.name as Workspace_Name, " +
+		"  t.name as team_name, " +
+		"  ot.team_id as team_id, " +
+		"  ot.permission_bit as team_permission_bit, " +
+		"  tu.user_id as user_id, " +
+		"  u.first_name || ' ' || u.last_name as user_name, " +
+		"  u.email as user_email_address, " +
+		"  tu.permission_bit as user_team_permission_bit, " +
+		"  ou.permission_bit as user_workspace_permission_bit " +
+		"from pennsieve.organizations o " +
+		"join pennsieve.organization_team ot on o.id=ot.organization_id " +
+		"join pennsieve.teams t on ot.team_id=t.id " +
+		"join pennsieve.team_user tu on t.id=tu.team_id " +
+		"join pennsieve.users u on tu.user_id=u.id " +
+		"join pennsieve.organization_user ou on u.id=ou.user_id and o.id=ou.organization_id " +
+		"where o.node_id=$1 " +
+		"and ot.system_team_type='publishers';"
+
+	rows, err := p.db.QueryContext(ctx, query)
+	if err != nil {
+		// TODO: log message
+		return nil, err
+	}
+
+	var publishers []models.Publisher
+	for rows.Next() {
+		var publisher models.Publisher
+		err := rows.Scan(
+			&publisher.WorkspaceId,
+			&publisher.WorkspaceName,
+			&publisher.TeamName,
+			&publisher.TeamId,
+			&publisher.TeamPermissionBit,
+			&publisher.UserId,
+			&publisher.UserName,
+			&publisher.UserEmailAddress,
+			&publisher.UserTeamPermissionBit,
+			&publisher.UserWorkspacePermissionBit,
+		)
+		if err != nil {
+			log.WithFields(log.Fields{"status": "error", "error": fmt.Sprintf("%+v", err)}).Error("rows.Scan()")
+		} else {
+			publishers = append(publishers, publisher)
+		}
+	}
+
+	return publishers, nil
 }
 
 func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	pgdbModels "github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
+	"github.com/pennsieve/publishing-service/api/aws/ses"
 	"github.com/pennsieve/publishing-service/api/dtos"
 	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/store"
@@ -42,6 +43,59 @@ type publishingService struct {
 
 func usersName(user *pgdbModels.User) string {
 	return fmt.Sprintf("%s %s", user.FirstName, user.LastName)
+}
+
+func sendEmail(ctx context.Context, sender string, recipients []string, subject string, body string) error {
+	// send email message
+	emailAgent := ses.MakeEmailer()
+	err := emailAgent.SendMessage(ctx, sender, recipients, subject, body)
+	if err != nil {
+		// TODO: log error
+	}
+	return err
+}
+
+func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposal, action string, repository *models.Repository) error {
+	ctx := context.TODO()
+	// TODO: lookup 'sender' email address from .. config? environment?
+	sender := "support@pennsieve.net"
+
+	// get Publishing team for the Repository
+	publishers, err := s.pennsieve.GetPublishingTeam(ctx, repository)
+	if err != nil {
+		// TODO: log error, and return error
+		return err
+	}
+
+	// build list of Publisher's email addresses
+	var recipients []string
+	for _, publisher := range publishers {
+		// TODO: make sure email address is not null and not the empty string
+		recipients = append(recipients, publisher.UserEmailAddress)
+	}
+
+	// compose message
+	subject := fmt.Sprintf("a dataset proposal has been %s", action)
+	body := fmt.Sprintf("%s (%s) has %s the dataset proposal\ntitle: %s",
+		proposal.OwnerName, proposal.EmailAddress, action, proposal.Name)
+
+	return sendEmail(ctx, sender, recipients, subject, body)
+}
+
+func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal, action string, repository *models.Repository) error {
+	ctx := context.TODO()
+	// TODO: lookup 'sender' email address from .. config? environment?
+	sender := "support@pennsieve.net"
+
+	var recipients []string
+	recipients = append(recipients, proposal.EmailAddress)
+
+	// compose message
+	subject := fmt.Sprintf("your dataset proposal has been %s", action)
+	body := fmt.Sprintf("The %s repository has %s your dataset proposal\ntitle: %s",
+		repository.Name, action, proposal.Name)
+
+	return sendEmail(ctx, sender, recipients, subject, body)
 }
 
 func (s *publishingService) GetPublishingInfo() ([]dtos.InfoDTO, error) {
@@ -326,7 +380,11 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 		return nil, err
 	}
 
-	// TODO: send email to Repository Publishers Team
+	// send email to Repository Publishers Team
+	err = s.notifyPublishingTeam(submitted, "submitted", repository)
+	if err != nil {
+		// TODO: log the error, but don't return from here
+	}
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
@@ -342,10 +400,13 @@ func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (
 	}
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.WithdrawDatasetProposal()")
 
-	// verify that the Dataset Proposal Status is “DRAFT”
+	// verify that the Dataset Proposal Status is “SUBMITTED”
 	if proposal.ProposalStatus != "SUBMITTED" {
 		return nil, fmt.Errorf("invalid action: proposal.status must be SUBMITTED in order to withdraw")
 	}
+
+	// get the Repository using the Organization Node Id on the Dataset Proposal
+	repository, err := s.store.GetRepository(proposal.OrganizationNodeId)
 
 	// update Dataset Proposal
 	currentTime := time.Now().Unix()
@@ -359,7 +420,11 @@ func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (
 		return nil, err
 	}
 
-	// TODO: send email to Repository Publishers Team
+	// send email to Repository Publishers Team
+	err = s.notifyPublishingTeam(withdrawn, "withdrawn", repository)
+	if err != nil {
+		// TODO: log the error, but don't return from here
+	}
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
@@ -379,6 +444,9 @@ func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId strin
 	if proposal.ProposalStatus != "SUBMITTED" {
 		return nil, fmt.Errorf("invalid action: proposal.status must be SUBMITTED in order to accept")
 	}
+
+	// get the Repository using the Organization Node Id on the Dataset Proposal
+	repository, err := s.store.GetRepository(proposal.OrganizationNodeId)
 
 	// create dataset
 	result, err := s.pennsieve.CreateDatasetForAcceptedProposal(context.TODO(), proposal)
@@ -404,7 +472,11 @@ func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId strin
 		return nil, err
 	}
 
-	// TODO: send email to Dataset Proposal author/originator
+	// send email to Dataset Proposal author/originator
+	err = s.notifyProposalOwner(accepted, "accepted", repository)
+	if err != nil {
+		// TODO: log error, but don't return
+	}
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
@@ -425,6 +497,9 @@ func (s *publishingService) RejectDatasetProposal(repositoryId int, nodeId strin
 		return nil, fmt.Errorf("invalid action: proposal.status must be SUBMITTED in order to reject")
 	}
 
+	// get the Repository using the Organization Node Id on the Dataset Proposal
+	repository, err := s.store.GetRepository(proposal.OrganizationNodeId)
+
 	// update Dataset Proposal
 	// - set Status = “REJECTED”
 	// - set AcceptedAt = current time
@@ -440,6 +515,10 @@ func (s *publishingService) RejectDatasetProposal(repositoryId int, nodeId strin
 	}
 
 	// TODO: send email to Dataset Proposal author/originator
+	err = s.notifyProposalOwner(rejected, "rejected", repository)
+	if err != nil {
+		// TODO: log error, but don't return
+	}
 	
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
