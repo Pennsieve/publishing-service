@@ -50,12 +50,14 @@ func sendEmail(ctx context.Context, sender string, recipients []string, subject 
 	emailAgent := ses.MakeEmailer()
 	err := emailAgent.SendMessage(ctx, sender, recipients, subject, body)
 	if err != nil {
-		// TODO: log error
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.sendEmail()")
 	}
 	return err
 }
 
 func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposal, action string, repository *models.Repository) error {
+	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal), "action": action, "repository": fmt.Sprintf("%+v", repository)}).Info("service.notifyPublishingTeam()")
+
 	ctx := context.TODO()
 	// TODO: lookup 'sender' email address from .. config? environment?
 	sender := "support@pennsieve.net"
@@ -63,9 +65,10 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 	// get Publishing team for the Repository
 	publishers, err := s.pennsieve.GetPublishingTeam(ctx, repository)
 	if err != nil {
-		// TODO: log error, and return error
+		log.WithFields(log.Fields{"failed": "GetPublishingTeam()", "error": fmt.Sprintf("%+v", err)}).Error("service.notifyPublishingTeam()")
 		return err
 	}
+	log.WithFields(log.Fields{"publishers": fmt.Sprintf("%+v", publishers)}).Info("service.notifyPublishingTeam()")
 
 	// build list of Publisher's email addresses
 	var recipients []string
@@ -79,10 +82,14 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 	body := fmt.Sprintf("%s (%s) has %s the dataset proposal\ntitle: %s",
 		proposal.OwnerName, proposal.EmailAddress, action, proposal.Name)
 
+	log.WithFields(log.Fields{"sender": sender, "recipients": fmt.Sprintf("%+v", recipients), "subject": subject, "body": body}).Info("service.notifyPublishingTeam()")
+
 	return sendEmail(ctx, sender, recipients, subject, body)
 }
 
 func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal, action string, repository *models.Repository) error {
+	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal), "action": action, "repository": fmt.Sprintf("%+v", repository)}).Info("service.notifyProposalOwner()")
+
 	ctx := context.TODO()
 	// TODO: lookup 'sender' email address from .. config? environment?
 	sender := "support@pennsieve.net"
@@ -94,6 +101,8 @@ func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal
 	subject := fmt.Sprintf("your dataset proposal has been %s", action)
 	body := fmt.Sprintf("The %s repository has %s your dataset proposal\ntitle: %s",
 		repository.Name, action, proposal.Name)
+
+	log.WithFields(log.Fields{"sender": sender, "recipients": fmt.Sprintf("%+v", recipients), "subject": subject, "body": body}).Info("service.notifyProposalOwner()")
 
 	return sendEmail(ctx, sender, recipients, subject, body)
 }
@@ -381,9 +390,10 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 	}
 
 	// send email to Repository Publishers Team
+	log.WithFields(log.Fields{"notify": "publishers"}).Info("service.SubmitDatasetProposal()")
 	err = s.notifyPublishingTeam(submitted, "submitted", repository)
 	if err != nil {
-		// TODO: log the error, but don't return from here
+		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.SubmitDatasetProposal()")
 	}
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
@@ -421,9 +431,10 @@ func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (
 	}
 
 	// send email to Repository Publishers Team
+	log.WithFields(log.Fields{"notify": "publishers"}).Info("service.WithdrawDatasetProposal()")
 	err = s.notifyPublishingTeam(withdrawn, "withdrawn", repository)
 	if err != nil {
-		// TODO: log the error, but don't return from here
+		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.WithdrawDatasetProposal()")
 	}
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
@@ -473,9 +484,10 @@ func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId strin
 	}
 
 	// send email to Dataset Proposal author/originator
+	log.WithFields(log.Fields{"notify": "owner"}).Info("service.AcceptDatasetProposal()")
 	err = s.notifyProposalOwner(accepted, "accepted", repository)
 	if err != nil {
-		// TODO: log error, but don't return
+		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.AcceptDatasetProposal()")
 	}
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
@@ -514,12 +526,13 @@ func (s *publishingService) RejectDatasetProposal(repositoryId int, nodeId strin
 		return nil, err
 	}
 
-	// TODO: send email to Dataset Proposal author/originator
+	// send email to Dataset Proposal author/originator
+	log.WithFields(log.Fields{"notify": "owner"}).Info("service.RejectDatasetProposal()")
 	err = s.notifyProposalOwner(rejected, "rejected", repository)
 	if err != nil {
-		// TODO: log error, but don't return
+		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.RejectDatasetProposal()")
 	}
-	
+
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
 }
