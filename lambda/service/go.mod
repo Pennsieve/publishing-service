@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/pennsieve/pennsieve-go-core v1.4.6
+	github.com/pennsieve/pennsieve-go-core v1.4.9
 	github.com/valyala/fastjson v1.6.4
 )
 
@@ -35,6 +35,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.13.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ses v1.15.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.4 // indirect

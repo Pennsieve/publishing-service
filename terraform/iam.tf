@@ -108,4 +108,14 @@ data "aws_iam_policy_document" "publishing_service_iam_policy_document" {
     resources = ["*"]
   }
 
+  statement {
+    sid = "PublishingServiceLambdaSESPermissions"
+    effect  = "Allow"
+    actions = [
+      "ses:SendEmail",
+      "ses:SendRawEmail",
+    ]
+    resources = ["*"]
+  }
+
 }
