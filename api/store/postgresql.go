@@ -115,9 +115,9 @@ func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, repository *mode
 		"where o.node_id=$1 " +
 		"and ot.system_team_type='publishers';"
 
-	rows, err := p.db.QueryContext(ctx, query)
+	rows, err := p.db.QueryContext(ctx, query, repository.OrganizationNodeId)
 	if err != nil {
-		// TODO: log message
+		log.WithFields(log.Fields{"QueryContext": "failed", "error": fmt.Sprintf("%+v", err)}).Error("GetPublishingTeam()")
 		return nil, err
 	}
 
