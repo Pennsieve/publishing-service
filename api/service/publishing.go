@@ -10,6 +10,7 @@ import (
 	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/store"
 	log "github.com/sirupsen/logrus"
+	"os"
 	"time"
 )
 
@@ -59,8 +60,7 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal), "action": action, "repository": fmt.Sprintf("%+v", repository)}).Info("service.notifyPublishingTeam()")
 
 	ctx := context.TODO()
-	// TODO: lookup 'sender' email address from .. config? environment?
-	sender := "support@pennsieve.net"
+	sender := fmt.Sprintf("support@%s", os.Getenv("PENNSIEVE_DOMAIN")) // "support@pennsieve.net"
 
 	// get Publishing team for the Repository
 	publishers, err := s.pennsieve.GetPublishingTeam(ctx, repository)
@@ -77,14 +77,19 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 		recipients = append(recipients, publisher.UserEmailAddress)
 	}
 
-	// compose message
-	subject := fmt.Sprintf("a dataset proposal has been %s", action)
-	body := fmt.Sprintf("%s (%s) has %s the dataset proposal\ntitle: %s",
-		proposal.OwnerName, proposal.EmailAddress, action, proposal.Name)
+	var emailMessage *EmailMessage
+	messageAttributes := GenerateMessageAttributes(proposal, repository)
+	switch action {
+	case "submit":
+		emailMessage, err = ProposalSubmittedMessage(ctx, messageAttributes)
+		if err != nil {
+			return err
+		}
+	}
 
-	log.WithFields(log.Fields{"sender": sender, "recipients": fmt.Sprintf("%+v", recipients), "subject": subject, "body": body}).Info("service.notifyPublishingTeam()")
+	log.WithFields(log.Fields{"sender": sender, "recipients": fmt.Sprintf("%+v", recipients), "subject": emailMessage.Subject, "body": emailMessage.Body}).Info("service.notifyPublishingTeam()")
 
-	return sendEmail(ctx, sender, recipients, subject, body)
+	return sendEmail(ctx, sender, recipients, emailMessage.Subject, emailMessage.Body)
 }
 
 func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal, action string, repository *models.Repository) error {
