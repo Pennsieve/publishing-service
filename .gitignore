@@ -19,3 +19,6 @@
 
 # Lambda Binaries Zip files
 lambda/bin
+
+# Node.js
+node_modules
