@@ -24,6 +24,11 @@ resource "aws_lambda_function" "service_lambda" {
       REPOSITORY_QUESTIONS_TABLE = aws_dynamodb_table.repository_questions_dynamo_table.name
       DATASET_PROPOSAL_TABLE = aws_dynamodb_table.dataset_proposals_dynamo_table.name
       RDS_PROXY_ENDPOINT        = data.terraform_remote_state.pennsieve_postgres.outputs.rds_proxy_endpoint
+      EMAIL_TEMPLATE_BUCKET  = data.terraform_remote_state.platform_infrastructure.outputs.dataset_assets_bucket_id
+      EMAIL_TEMPLATE_SUBMITTED = "PublishingService/dataset-proposal-submitted.html"
+      EMAIL_TEMPLATE_WITHDRAWN = ""
+      EMAIL_TEMPLATE_ACCEPTED = ""
+      EMAIL_TEMPLATE_REJECTED = ""
     }
   }
 }
