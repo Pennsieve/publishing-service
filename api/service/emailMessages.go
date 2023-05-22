@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/pennsieve/publishing-service/api/aws/s3"
 	"github.com/pennsieve/publishing-service/api/models"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
 )
@@ -17,10 +18,11 @@ type EmailMessage struct {
 }
 
 func loadEmailTemplate(ctx context.Context, s3Bucket string, s3Key string) (*string, error) {
+	log.WithFields(log.Fields{"s3Bucket": s3Bucket, "s3Key": s3Key}).Info("service.loadEmailTemplate()")
 	reader := s3.MakeFileReader()
-	source, err := reader.ReadFile(ctx, os.Getenv(s3Bucket), os.Getenv(s3Key))
+	source, err := reader.ReadFile(ctx, s3Bucket, s3Key)
 	if err != nil {
-		// TODO: better error handling
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.loadEmailTemplate()")
 		return nil, err
 	}
 	return source, nil
@@ -37,12 +39,16 @@ func GenerateMessageAttributes(proposal *models.DatasetProposal, repository *mod
 	}
 }
 
-func ProposalSubmittedMessage(ctx context.Context, messageAttributes MessageAttributes) (*EmailMessage, error) {
+func ProposalSubmittedMessage(ctx context.Context, messageAttributes MessageAttributes) (EmailMessage, error) {
+	log.WithFields(log.Fields{"messageAttributes": fmt.Sprintf("%+v", messageAttributes)}).Info("service.ProposalSubmittedMessage()")
+
 	// read template file
-	template, err := loadEmailTemplate(ctx, "EMAIL_TEMPLATE_BUCKET", "EMAIL_TEMPLATE_SUBMITTED")
+	template, err := loadEmailTemplate(ctx,
+		os.Getenv("EMAIL_TEMPLATE_BUCKET"),
+		os.Getenv("EMAIL_TEMPLATE_SUBMITTED"))
 	if err != nil {
-		// TODO: better error handling
-		return nil, err
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.ProposalSubmittedMessage()")
+		return EmailMessage{}, err
 	}
 
 	// substitute values
@@ -53,7 +59,7 @@ func ProposalSubmittedMessage(ctx context.Context, messageAttributes MessageAttr
 		modified = strings.Replace(modified, search, replace, -1)
 	}
 
-	return &EmailMessage{
+	return EmailMessage{
 		Subject: "A Dataset Proposal has been Submitted",
 		Body:    modified,
 	}, nil
