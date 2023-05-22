@@ -1,0 +1,25 @@
+{
+  "name": "dm-email-templates",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "mjml": "./node_modules/.bin/mjml",
+    "auth-cognito-compile": "mjml mjml/new-account-creation.mjml -o $npm_config_dir/new-account-creation.template.html --config.minify=true && mjml mjml/password-reset.mjml -o $npm_config_dir/password-reset.template.html --config.minify=true"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pennsieve/dm-email-templates.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Pennsieve/dm-email-templates/issues"
+  },
+  "homepage": "https://github.com/Pennsieve/dm-email-templates#readme",
+  "dependencies": {
+    "mjml": "^4.13.0"
+  }
+}
