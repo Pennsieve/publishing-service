@@ -77,7 +77,7 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 		recipients = append(recipients, publisher.UserEmailAddress)
 	}
 
-	var emailMessage *EmailMessage
+	var emailMessage EmailMessage
 	messageAttributes := GenerateMessageAttributes(proposal, repository)
 	switch action {
 	case "submit":
@@ -86,7 +86,6 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 			return err
 		}
 	}
-
 	log.WithFields(log.Fields{"sender": sender, "recipients": fmt.Sprintf("%+v", recipients), "subject": emailMessage.Subject, "body": emailMessage.Body}).Info("service.notifyPublishingTeam()")
 
 	return sendEmail(ctx, sender, recipients, emailMessage.Subject, emailMessage.Body)
