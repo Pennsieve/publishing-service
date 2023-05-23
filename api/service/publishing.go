@@ -77,8 +77,8 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 		recipients = append(recipients, publisher.UserEmailAddress)
 	}
 
-	var emailMessage EmailMessage
-	messageAttributes := GenerateMessageAttributes(proposal, repository)
+	var emailMessage *EmailMessage
+	messageAttributes := MakeMessageAttributes(proposal, repository)
 	switch action {
 	case "submit":
 		emailMessage, err = ProposalSubmittedMessage(ctx, messageAttributes)
