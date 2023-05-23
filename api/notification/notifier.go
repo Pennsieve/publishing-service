@@ -2,6 +2,15 @@ package notification
 
 import "fmt"
 
+type Notification int64
+
+const (
+	Submitted Notification = iota
+	Withdrawn
+	Accepted
+	Rejected
+)
+
 type MessageAttributes map[string]string
 
 func (ma MessageAttributes) String() string {

@@ -59,7 +59,7 @@ func sendEmail(ctx context.Context, sender string, recipients []string, subject 
 	return err
 }
 
-func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposal, action string, repository *models.Repository) error {
+func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposal, action notification.Notification, repository *models.Repository) error {
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal), "action": action, "repository": fmt.Sprintf("%+v", repository)}).Info("service.notifyPublishingTeam()")
 
 	ctx := context.TODO()
@@ -80,7 +80,7 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 	}
 
 	switch action {
-	case "submit":
+	case notification.Submitted:
 		err = s.notifier.ProposalSubmitted(notification.MessageAttributes{
 			"AppURL":          os.Getenv("PENNSIEVE_DOMAIN"),
 			"AuthorName":      proposal.OwnerName,
@@ -398,7 +398,7 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 
 	// send email to Repository Publishers Team
 	log.WithFields(log.Fields{"notify": "publishers"}).Info("service.SubmitDatasetProposal()")
-	err = s.notifyPublishingTeam(submitted, "submitted", repository)
+	err = s.notifyPublishingTeam(submitted, notification.Submitted, repository)
 	if err != nil {
 		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.SubmitDatasetProposal()")
 	}
@@ -439,7 +439,7 @@ func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (
 
 	// send email to Repository Publishers Team
 	log.WithFields(log.Fields{"notify": "publishers"}).Info("service.WithdrawDatasetProposal()")
-	err = s.notifyPublishingTeam(withdrawn, "withdrawn", repository)
+	err = s.notifyPublishingTeam(withdrawn, notification.Withdrawn, repository)
 	if err != nil {
 		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.WithdrawDatasetProposal()")
 	}
