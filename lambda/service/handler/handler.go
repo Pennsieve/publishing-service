@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/pennsieve/pennsieve-go-core/pkg/authorizer"
 	"github.com/pennsieve/pennsieve-go-core/pkg/queries/pgdb"
 	"github.com/pennsieve/publishing-service/api/dtos"
+	"github.com/pennsieve/publishing-service/api/notification"
 	"github.com/pennsieve/publishing-service/api/service"
 	"github.com/pennsieve/publishing-service/api/store"
 	log "github.com/sirupsen/logrus"
@@ -55,7 +57,8 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 
 	pubStore := store.NewPublishingStore()
 	pennsieve := store.NewPennsieveStore(db, orgId)
-	service := service.NewPublishingService(pubStore, pennsieve)
+	notifier := notification.NewEmailNotifier(context.TODO())
+	service := service.NewPublishingService(pubStore, pennsieve, notifier)
 
 	r := regexp.MustCompile(`(?P<method>) (?P<pathKey>.*)`)
 	routeKeyParts := r.FindStringSubmatch(request.RouteKey)

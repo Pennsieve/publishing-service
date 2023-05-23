@@ -60,10 +60,10 @@ func (emailer *Emailer) SendMessage(ctx context.Context, sender string, recipien
 
 	result, err := emailer.Client.SendEmail(ctx, message)
 	if err != nil {
-		log.WithFields(log.Fields{"SendMessage": "failure", "error": fmt.Sprintf("%+v", err)}).Info("emailer.SendMessage()")
+		log.WithFields(log.Fields{"SendMessage": "failure", "error": fmt.Sprintf("%+v", err)}).Info("Emailer.SendMessage()")
 		return err
 	}
 
-	log.WithFields(log.Fields{"SendMessage": "success", "result": fmt.Sprintf("%+v", result)}).Info("emailer.SendMessage()")
+	log.WithFields(log.Fields{"SendMessage": "success", "result": fmt.Sprintf("%+v", result)}).Info("Emailer.SendMessage()")
 	return nil
 }

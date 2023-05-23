@@ -8,6 +8,7 @@ import (
 	"github.com/pennsieve/publishing-service/api/aws/ses"
 	"github.com/pennsieve/publishing-service/api/dtos"
 	"github.com/pennsieve/publishing-service/api/models"
+	"github.com/pennsieve/publishing-service/api/notification"
 	"github.com/pennsieve/publishing-service/api/store"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -30,16 +31,18 @@ type PublishingService interface {
 	RejectDatasetProposal(repositoryId int, nodeId string) (*dtos.DatasetProposalDTO, error)
 }
 
-func NewPublishingService(pubStore store.PublishingStore, pennsieve store.PennsievePublishingStore) *publishingService {
+func NewPublishingService(pubStore store.PublishingStore, pennsieve store.PennsievePublishingStore, notifier notification.Notifier) *publishingService {
 	return &publishingService{
 		store:     pubStore,
 		pennsieve: pennsieve,
+		notifier:  notifier,
 	}
 }
 
 type publishingService struct {
 	store     store.PublishingStore
 	pennsieve store.PennsievePublishingStore
+	notifier  notification.Notifier
 }
 
 func usersName(user *pgdbModels.User) string {
@@ -60,7 +63,6 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal), "action": action, "repository": fmt.Sprintf("%+v", repository)}).Info("service.notifyPublishingTeam()")
 
 	ctx := context.TODO()
-	sender := fmt.Sprintf("support@%s", os.Getenv("PENNSIEVE_DOMAIN")) // "support@pennsieve.net"
 
 	// get Publishing team for the Repository
 	publishers, err := s.pennsieve.GetPublishingTeam(ctx, repository)
@@ -77,18 +79,19 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 		recipients = append(recipients, publisher.UserEmailAddress)
 	}
 
-	var emailMessage *EmailMessage
-	messageAttributes := MakeMessageAttributes(proposal, repository)
 	switch action {
 	case "submit":
-		emailMessage, err = ProposalSubmittedMessage(ctx, messageAttributes)
-		if err != nil {
-			return err
-		}
+		err = s.notifier.ProposalSubmitted(notification.MessageAttributes{
+			"AppURL":          os.Getenv("PENNSIEVE_DOMAIN"),
+			"AuthorName":      proposal.OwnerName,
+			"AuthorEmail":     proposal.EmailAddress,
+			"ProposalTitle":   proposal.Name,
+			"WorkspaceName":   repository.Name,
+			"WorkspaceNodeId": repository.OrganizationNodeId,
+		}, recipients)
 	}
-	log.WithFields(log.Fields{"sender": sender, "recipients": fmt.Sprintf("%+v", recipients), "subject": emailMessage.Subject, "body": emailMessage.Body}).Info("service.notifyPublishingTeam()")
 
-	return sendEmail(ctx, sender, recipients, emailMessage.Subject, emailMessage.Body)
+	return err
 }
 
 func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal, action string, repository *models.Repository) error {
