@@ -25,11 +25,25 @@ func loadEmailTemplate(ctx context.Context, s3Bucket string, s3Key string) (*str
 		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.loadEmailTemplate()")
 		return nil, err
 	}
+	log.WithFields(log.Fields{"source": source}).Info("service.loadEmailTemplate()")
 	return source, nil
 }
 
-func GenerateMessageAttributes(proposal *models.DatasetProposal, repository *models.Repository) MessageAttributes {
-	return MessageAttributes{
+func replaceTemplateFields(template *string, messageAttributes MessageAttributes) string {
+	modified := *template
+
+	for key := range messageAttributes {
+		search := fmt.Sprintf("${%s}", key)
+		replace := messageAttributes[key]
+		log.WithFields(log.Fields{"key": key, "search": search, "replace": replace}).Info("replaceTemplateFields()")
+		modified = strings.Replace(modified, search, replace, -1)
+	}
+
+	return modified
+}
+
+func MakeMessageAttributes(proposal *models.DatasetProposal, repository *models.Repository) *MessageAttributes {
+	return &MessageAttributes{
 		"AppURL":          os.Getenv("PENNSIEVE_DOMAIN"),
 		"AuthorName":      proposal.OwnerName,
 		"AuthorEmail":     proposal.EmailAddress,
@@ -39,27 +53,23 @@ func GenerateMessageAttributes(proposal *models.DatasetProposal, repository *mod
 	}
 }
 
-func ProposalSubmittedMessage(ctx context.Context, messageAttributes MessageAttributes) (EmailMessage, error) {
-	log.WithFields(log.Fields{"messageAttributes": fmt.Sprintf("%+v", messageAttributes)}).Info("service.ProposalSubmittedMessage()")
+func ProposalSubmittedMessage(ctx context.Context, messageAttributes *MessageAttributes) (*EmailMessage, error) {
+	s3Bucket := os.Getenv("EMAIL_TEMPLATE_BUCKET")
+	s3Key := os.Getenv("EMAIL_TEMPLATE_SUBMITTED")
+	log.WithFields(log.Fields{"s3Bucket": s3Bucket, "s3Key": s3Key, "messageAttributes": fmt.Sprintf("%+v", messageAttributes)}).Info("service.ProposalSubmittedMessage()")
 
 	// read template file
-	template, err := loadEmailTemplate(ctx,
-		os.Getenv("EMAIL_TEMPLATE_BUCKET"),
-		os.Getenv("EMAIL_TEMPLATE_SUBMITTED"))
+	template, err := loadEmailTemplate(ctx, s3Bucket, s3Key)
 	if err != nil {
 		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.ProposalSubmittedMessage()")
-		return EmailMessage{}, err
+		return nil, err
 	}
 
 	// substitute values
-	modified := *template
-	for key := range messageAttributes {
-		search := fmt.Sprintf("${%s}", key)
-		replace := messageAttributes[key]
-		modified = strings.Replace(modified, search, replace, -1)
-	}
+	modified := replaceTemplateFields(template, *messageAttributes)
+	log.WithFields(log.Fields{"modified": modified}).Info("service.ProposalSubmittedMessage()")
 
-	return EmailMessage{
+	return &EmailMessage{
 		Subject: "A Dataset Proposal has been Submitted",
 		Body:    modified,
 	}, nil
