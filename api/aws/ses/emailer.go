@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/ses/types"
+	sesTypes "github.com/pennsieve/publishing-service/api/aws/ses/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -27,8 +28,29 @@ type Emailer struct {
 	CharSet string
 }
 
-// TODO: make `to` an array of recipients
-func (emailer *Emailer) SendMessage(ctx context.Context, sender string, recipients []string, subject string, body string) error {
+func (emailer *Emailer) messageBody(body string, format sesTypes.MessageFormat) *types.Body {
+	switch format {
+	case sesTypes.HTML:
+		return &types.Body{
+			Html: &types.Content{
+				Data:    &body,
+				Charset: &emailer.CharSet,
+			},
+			Text: nil,
+		}
+	case sesTypes.Text:
+		return &types.Body{
+			Html: nil,
+			Text: &types.Content{
+				Data:    &body,
+				Charset: &emailer.CharSet,
+			},
+		}
+	}
+	return nil
+}
+
+func (emailer *Emailer) SendMessage(ctx context.Context, sender string, recipients []string, subject string, body string, format sesTypes.MessageFormat) error {
 	// compose email message
 	message := &ses.SendEmailInput{
 		Destination: &types.Destination{
@@ -37,13 +59,7 @@ func (emailer *Emailer) SendMessage(ctx context.Context, sender string, recipien
 			ToAddresses:  recipients,
 		},
 		Message: &types.Message{
-			Body: &types.Body{
-				Html: nil,
-				Text: &types.Content{
-					Data:    &body,
-					Charset: &emailer.CharSet,
-				},
-			},
+			Body: emailer.messageBody(body, format),
 			Subject: &types.Content{
 				Data:    &subject,
 				Charset: &emailer.CharSet,
