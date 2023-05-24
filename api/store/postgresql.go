@@ -16,6 +16,7 @@ type PennsievePublishingStore interface {
 	GetRepositoryWorkspace(ctx context.Context, repository *models.Repository) (*pgdbModels.Organization, error)
 	GetPublishingTeam(ctx context.Context, repository *models.Repository) ([]models.Publisher, error)
 	CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error)
+	GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.Organization, error)
 }
 
 func NewPennsieveStore(db *sql.DB, orgId int64) *pennsieveStore {
@@ -92,6 +93,10 @@ func (p *pennsieveStore) GetProposalUser(ctx context.Context, userId int64) (*pg
 
 func (p *pennsieveStore) GetRepositoryWorkspace(ctx context.Context, repository *models.Repository) (*pgdbModels.Organization, error) {
 	return p.q.GetOrganizationByNodeId(ctx, repository.OrganizationNodeId)
+}
+
+func (p *pennsieveStore) GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.Organization, error) {
+	return p.q.GetOrganizationBySlug(ctx, "welcome_to_pennsieve")
 }
 
 func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, repository *models.Repository) ([]models.Publisher, error) {
