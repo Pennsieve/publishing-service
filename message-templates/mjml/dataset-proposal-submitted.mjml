@@ -56,7 +56,7 @@
       <mj-column background-color="#5039F7" padding="18px 20px 35px 20px">
         <mj-text color="#ffffff" padding="0">
           <h1>Proposal Submitted</h1>
-          <h2>A Dataset Proposal has been submitted to the ${WorkspaceName} Workspace</h2>
+          <h2>A Dataset Proposal has been submitted to ${WorkspaceName}</h2>
         </mj-text>
       </mj-column>
     </mj-section>
