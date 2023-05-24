@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	pgdbModels "github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/publishing-service/api/aws/ses"
+	sesTypes "github.com/pennsieve/publishing-service/api/aws/ses/types"
 	"github.com/pennsieve/publishing-service/api/dtos"
 	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/notification"
@@ -52,7 +53,7 @@ func usersName(user *pgdbModels.User) string {
 func sendEmail(ctx context.Context, sender string, recipients []string, subject string, body string) error {
 	// send email message
 	emailAgent := ses.MakeEmailer()
-	err := emailAgent.SendMessage(ctx, sender, recipients, subject, body)
+	err := emailAgent.SendMessage(ctx, sender, recipients, subject, body, sesTypes.Text)
 	if err != nil {
 		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.sendEmail()")
 	}

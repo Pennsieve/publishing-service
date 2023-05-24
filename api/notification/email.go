@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/pennsieve/publishing-service/api/aws/s3"
 	"github.com/pennsieve/publishing-service/api/aws/ses"
+	sesTypes "github.com/pennsieve/publishing-service/api/aws/ses/types"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
@@ -60,7 +61,7 @@ func (e *EmailNotifier) ProposalSubmitted(messageAttributes MessageAttributes, r
 	body := e.replaceTemplateFields(template, messageAttributes)
 
 	// send email
-	err = e.emailAgent.SendMessage(e.ctx, e.sender, recipients, subject, body)
+	err = e.emailAgent.SendMessage(e.ctx, e.sender, recipients, subject, body, sesTypes.HTML)
 
 	return err
 }
