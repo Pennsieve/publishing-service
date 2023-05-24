@@ -26,9 +26,9 @@ resource "aws_lambda_function" "service_lambda" {
       RDS_PROXY_ENDPOINT        = data.terraform_remote_state.pennsieve_postgres.outputs.rds_proxy_endpoint
       EMAIL_TEMPLATE_BUCKET  = data.terraform_remote_state.platform_infrastructure.outputs.dataset_assets_bucket_id
       EMAIL_TEMPLATE_SUBMITTED = "PublishingService/EmailTemplates/dataset-proposal-submitted.html"
-      EMAIL_TEMPLATE_WITHDRAWN = ""
-      EMAIL_TEMPLATE_ACCEPTED = ""
-      EMAIL_TEMPLATE_REJECTED = ""
+      EMAIL_TEMPLATE_WITHDRAWN = "PublishingService/EmailTemplates/dataset-proposal-withdrawn.html"
+      EMAIL_TEMPLATE_ACCEPTED = "PublishingService/EmailTemplates/dataset-proposal-accepted.html"
+      EMAIL_TEMPLATE_REJECTED = "PublishingService/EmailTemplates/dataset-proposal-rejected.html"
     }
   }
 }
