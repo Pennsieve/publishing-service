@@ -83,7 +83,7 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 	switch action {
 	case notification.Submitted:
 		err = s.notifier.ProposalSubmitted(notification.MessageAttributes{
-			"AppURL":          os.Getenv("PENNSIEVE_DOMAIN"),
+			"AppURL":          fmt.Sprintf("app.%s", os.Getenv("PENNSIEVE_DOMAIN")),
 			"AuthorName":      proposal.OwnerName,
 			"AuthorEmail":     proposal.EmailAddress,
 			"ProposalTitle":   proposal.Name,
