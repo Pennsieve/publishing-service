@@ -80,39 +80,59 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 		recipients = append(recipients, publisher.UserEmailAddress)
 	}
 
+	messageAttributes := notification.MessageAttributes{
+		"AppURL":          fmt.Sprintf("app.%s", os.Getenv("PENNSIEVE_DOMAIN")),
+		"AuthorName":      proposal.OwnerName,
+		"AuthorEmail":     proposal.EmailAddress,
+		"ProposalTitle":   proposal.Name,
+		"WorkspaceName":   repository.DisplayName,
+		"WorkspaceNodeId": repository.OrganizationNodeId,
+	}
+
 	switch action {
 	case notification.Submitted:
-		err = s.notifier.ProposalSubmitted(notification.MessageAttributes{
-			"AppURL":          fmt.Sprintf("app.%s", os.Getenv("PENNSIEVE_DOMAIN")),
-			"AuthorName":      proposal.OwnerName,
-			"AuthorEmail":     proposal.EmailAddress,
-			"ProposalTitle":   proposal.Name,
-			"WorkspaceName":   repository.DisplayName,
-			"WorkspaceNodeId": repository.OrganizationNodeId,
-		}, recipients)
+		err = s.notifier.ProposalSubmitted(messageAttributes, recipients)
+	case notification.Withdrawn:
+		err = s.notifier.ProposalWithdrawn(messageAttributes, recipients)
 	}
 
 	return err
 }
 
-func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal, action string, repository *models.Repository) error {
+func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal, action notification.Notification, repository *models.Repository) error {
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal), "action": action, "repository": fmt.Sprintf("%+v", repository)}).Info("service.notifyProposalOwner()")
 
 	ctx := context.TODO()
-	// TODO: lookup 'sender' email address from .. config? environment?
-	sender := "support@pennsieve.net"
 
+	// lookup the Welcome Workspace
+	welcomeWorkspace, err := s.pennsieve.GetWelcomeWorkspace(ctx)
+	if err != nil {
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.notifyProposalOwner()")
+		return err
+	}
+
+	// the recipients are just the proposal owner/author
 	var recipients []string
 	recipients = append(recipients, proposal.EmailAddress)
 
-	// compose message
-	subject := fmt.Sprintf("your dataset proposal has been %s", action)
-	body := fmt.Sprintf("The %s repository has %s your dataset proposal\ntitle: %s",
-		repository.Name, action, proposal.Name)
+	messageAttributes := notification.MessageAttributes{
+		"AppURL":                 fmt.Sprintf("app.%s", os.Getenv("PENNSIEVE_DOMAIN")),
+		"AuthorName":             proposal.OwnerName,
+		"AuthorEmail":            proposal.EmailAddress,
+		"ProposalTitle":          proposal.Name,
+		"WorkspaceName":          repository.DisplayName,
+		"WorkspaceNodeId":        repository.OrganizationNodeId,
+		"WelcomeWorkspaceNodeId": welcomeWorkspace.NodeId,
+	}
 
-	log.WithFields(log.Fields{"sender": sender, "recipients": fmt.Sprintf("%+v", recipients), "subject": subject, "body": body}).Info("service.notifyProposalOwner()")
+	switch action {
+	case notification.Accepted:
+		err = s.notifier.ProposalAccepted(messageAttributes, recipients)
+	case notification.Rejected:
+		err = s.notifier.ProposalRejected(messageAttributes, recipients)
+	}
 
-	return sendEmail(ctx, sender, recipients, subject, body)
+	return err
 }
 
 func (s *publishingService) GetPublishingInfo() ([]dtos.InfoDTO, error) {
@@ -493,7 +513,7 @@ func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId strin
 
 	// send email to Dataset Proposal author/originator
 	log.WithFields(log.Fields{"notify": "owner"}).Info("service.AcceptDatasetProposal()")
-	err = s.notifyProposalOwner(accepted, "accepted", repository)
+	err = s.notifyProposalOwner(accepted, notification.Accepted, repository)
 	if err != nil {
 		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.AcceptDatasetProposal()")
 	}
@@ -536,7 +556,7 @@ func (s *publishingService) RejectDatasetProposal(repositoryId int, nodeId strin
 
 	// send email to Dataset Proposal author/originator
 	log.WithFields(log.Fields{"notify": "owner"}).Info("service.RejectDatasetProposal()")
-	err = s.notifyProposalOwner(rejected, "rejected", repository)
+	err = s.notifyProposalOwner(rejected, notification.Rejected, repository)
 	if err != nil {
 		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.RejectDatasetProposal()")
 	}
