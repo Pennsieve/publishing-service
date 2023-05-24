@@ -87,7 +87,7 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 			"AuthorName":      proposal.OwnerName,
 			"AuthorEmail":     proposal.EmailAddress,
 			"ProposalTitle":   proposal.Name,
-			"WorkspaceName":   repository.Name,
+			"WorkspaceName":   repository.DisplayName,
 			"WorkspaceNodeId": repository.OrganizationNodeId,
 		}, recipients)
 	}
