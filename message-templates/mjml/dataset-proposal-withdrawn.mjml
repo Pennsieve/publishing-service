@@ -55,8 +55,8 @@
     <mj-section mj-class="full-section" padding-top="0" padding-bottom="20px">
       <mj-column background-color="#5039F7" padding="18px 20px 35px 20px">
         <mj-text color="#ffffff" padding="0">
-          <h1>Proposal Submitted</h1>
-          <h2>A Dataset Proposal has been submitted to ${WorkspaceName}</h2>
+          <h1>Proposal Withdrawn</h1>
+          <h2>A Dataset Proposal has been withdrawn from ${WorkspaceName}</h2>
         </mj-text>
       </mj-column>
     </mj-section>
@@ -64,7 +64,7 @@
     <mj-section mj-class="copy-section">
       <mj-column padding="0">
         <mj-text mj-class="kicker">
-          A Dataset Proposal has been submitted to the ${WorkspaceName} Workspace for review. The dataset proposal may be viewed on the Publishing page of the <a href="https://${AppURL}">Pennsieve Web Application</a>.
+          The request to review a Dataset Proposal has been withdrawn from the ${WorkspaceName} Workspace.
         </mj-text>
       </mj-column>
     </mj-section>
@@ -72,7 +72,7 @@
     <mj-section mj-class="copy-section">
       <mj-column padding="24px 0 0">
         <mj-text mj-class="kicker">
-          <strong>Submitted by:</strong> ${AuthorName} (${AuthorEmail})
+          <strong>Withdrawn by:</strong> ${AuthorName} (${AuthorEmail})
         </mj-text>
         <mj-text mj-class="kicker">
           <strong>Proposal title:</strong> ${ProposalTitle}

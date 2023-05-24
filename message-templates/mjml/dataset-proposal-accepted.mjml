@@ -55,8 +55,8 @@
     <mj-section mj-class="full-section" padding-top="0" padding-bottom="20px">
       <mj-column background-color="#5039F7" padding="18px 20px 35px 20px">
         <mj-text color="#ffffff" padding="0">
-          <h1>Proposal Submitted</h1>
-          <h2>A Dataset Proposal has been submitted to ${WorkspaceName}</h2>
+          <h1>Proposal Accepted</h1>
+          <h2>Your Dataset Proposal has been accepted by ${WorkspaceName}</h2>
         </mj-text>
       </mj-column>
     </mj-section>
@@ -64,16 +64,13 @@
     <mj-section mj-class="copy-section">
       <mj-column padding="0">
         <mj-text mj-class="kicker">
-          A Dataset Proposal has been submitted to the ${WorkspaceName} Workspace for review. The dataset proposal may be viewed on the Publishing page of the <a href="https://${AppURL}">Pennsieve Web Application</a>.
+          Your Dataset Proposal has been reviewed and accepted by ${WorkspaceName}.
         </mj-text>
       </mj-column>
     </mj-section>
         
     <mj-section mj-class="copy-section">
       <mj-column padding="24px 0 0">
-        <mj-text mj-class="kicker">
-          <strong>Submitted by:</strong> ${AuthorName} (${AuthorEmail})
-        </mj-text>
         <mj-text mj-class="kicker">
           <strong>Proposal title:</strong> ${ProposalTitle}
         </mj-text>
@@ -82,8 +79,8 @@
 
     <mj-section mj-class="copy-section">
       <mj-column padding="48px 0 0">
-        <mj-button padding="0" align="left" href="https://${AppURL}/${WorkspaceNodeId}/publishing/proposed">
-          View Dataset Proposals
+        <mj-button padding="0" align="left" href="https://${AppURL}/${WelcomeWorkspaceNodeId}/submit/">
+          View Your Dataset Proposals
         </mj-button>
       </mj-column>
     </mj-section>

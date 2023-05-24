@@ -24,4 +24,7 @@ func (ma MessageAttributes) String() string {
 
 type Notifier interface {
 	ProposalSubmitted(messageAttributes MessageAttributes, recipients []string) error
+	ProposalWithdrawn(messageAttributes MessageAttributes, recipients []string) error
+	ProposalAccepted(messageAttributes MessageAttributes, recipients []string) error
+	ProposalRejected(messageAttributes MessageAttributes, recipients []string) error
 }
