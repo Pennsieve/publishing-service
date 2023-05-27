@@ -87,7 +87,6 @@ func BuildRepositoryDTO(repository models.Repository, questionMap map[int]Questi
 		OrganizationNodeId:  repository.OrganizationNodeId,
 		Name:                repository.Name,
 		DisplayName:         repository.DisplayName,
-		RepositoryId:        repository.RepositoryId,
 		Type:                repository.Type,
 		Description:         repository.Description,
 		URL:                 repository.URL,

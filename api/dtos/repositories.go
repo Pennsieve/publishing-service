@@ -8,7 +8,6 @@ type RepositoryDTO struct {
 	OrganizationNodeId  string        `json:"organizationNodeId"`
 	Name                string        `json:"name"`
 	DisplayName         string        `json:"displayName"`
-	RepositoryId        int           `json:"repositoryId"`
 	Type                string        `json:"type"`
 	Description         string        `json:"description"`
 	URL                 string        `json:"url"`
