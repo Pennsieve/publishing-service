@@ -382,9 +382,9 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 	// get the Repository using the Organization Node Id on the Dataset Proposal
 	repository, err := s.store.GetRepository(proposal.OrganizationNodeId)
 
-	// verify that Repository Id is the same on the Repository and the Dataset Proposal (extra check)
-	if proposal.RepositoryId != repository.RepositoryId {
-		return nil, fmt.Errorf("invalid state: RepositoryId on proposal does not match the Repository")
+	// verify that Organization NodeId is the same on the Repository and the Dataset Proposal (extra check)
+	if proposal.OrganizationNodeId != repository.OrganizationNodeId {
+		return nil, fmt.Errorf("invalid state: OrganizationNodeId on proposal does not match the Repository")
 	}
 
 	// ensure that all Repository Questions are answered in the Dataset Proposal Survey
