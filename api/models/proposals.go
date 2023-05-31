@@ -12,7 +12,6 @@ type DatasetProposal struct {
 	EmailAddress       string        `dynamodbav:"EmailAddress"`
 	Name               string        `dynamodbav:"Name"`
 	Description        string        `dynamodbav:"Description"`
-	RepositoryId       int           `dynamodbav:"RepositoryId"`
 	OrganizationNodeId string        `dynamodbav:"OrganizationNodeId"`
 	DatasetNodeId      string        `dynamodbav:"DatasetNodeId"`
 	ProposalStatus     string        `dynamodbav:"ProposalStatus"`
