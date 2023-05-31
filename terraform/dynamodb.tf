@@ -105,8 +105,8 @@ resource "aws_dynamodb_table" "dataset_proposals_dynamo_table" {
   }
 
   attribute {
-    name = "RepositoryId"
-    type = "N"
+    name = "OrganizationNodeId"
+    type = "S"
   }
 
   attribute {
@@ -116,7 +116,7 @@ resource "aws_dynamodb_table" "dataset_proposals_dynamo_table" {
 
   global_secondary_index {
     name               = "RepositoryProposalStatusIndex"
-    hash_key           = "RepositoryId"
+    hash_key           = "OrganizationNodeId"
     range_key          = "ProposalStatus"
     projection_type    = "ALL"
   }

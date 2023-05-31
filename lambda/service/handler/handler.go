@@ -66,16 +66,7 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 	httpMethod := request.RequestContext.HTTP.Method
 
 	log.WithFields(log.Fields{"method": httpMethod, "route": routeKey}).Info("handleRequest()")
-
-	// TODO: create function for each invocation
-	// TODO: each invocation function shall invoke the Service to process the request
-	// TODO: each invocation function shall return an APIGatewayV2HTTPResponse, error
-	// TODO: each invocation function shall format success responses (in JSON)
-	// TODO: each invocation function shall generate error responses
-	// TODO: if an invocation function returns an error, the top-level handler will generate a 500 with the error
-
-	// TODO: figure out authorization
-
+	
 	switch routeKey {
 	case "/publishing/info":
 		switch httpMethod {
@@ -95,7 +86,7 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 	case "/publishing/proposal":
 		switch httpMethod {
 		case "GET":
-			if ok := authorized(); ok {
+			if ok := authorizedAuthor(claims); ok {
 				jsonBody, statusCode = handleGetUserDatasetProposals(claims, service)
 			} else {
 				jsonBody = nil
@@ -121,22 +112,17 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 	case "/publishing/submission":
 		switch httpMethod {
 		case "GET":
-			if ok := authorized(); ok {
-				jsonBody, statusCode = handleGetWorkspaceDatasetProposals(request, claims, service)
-			} else {
-				jsonBody = nil
-				statusCode = 401
-			}
+			jsonBody, statusCode = handleGetWorkspaceDatasetProposals(authorizedPublisher, claims, service, request)
 		}
 	case "/publishing/submission/accept":
 		switch httpMethod {
 		case "POST":
-			jsonBody, statusCode = handleAcceptDatasetProposal(request, claims, service)
+			jsonBody, statusCode = handleAcceptDatasetProposal(authorizedPublisher, claims, service, request)
 		}
 	case "/publishing/submission/reject":
 		switch httpMethod {
 		case "POST":
-			jsonBody, statusCode = handleRejectDatasetProposal(request, claims, service)
+			jsonBody, statusCode = handleRejectDatasetProposal(authorizedPublisher, claims, service, request)
 		}
 	}
 
@@ -149,9 +135,14 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 	return &response, err
 }
 
-// TODO: figure out authorization
-func authorized() bool {
+type Authorizer func(claims *authorizer.Claims) bool
+
+// TODO: figure out author authorization
+func authorizedAuthor(claims *authorizer.Claims) bool {
 	return true
+}
+func authorizedPublisher(claims *authorizer.Claims) bool {
+	return authorizer.IsPublisher(claims)
 }
 
 func handleGetPublishingInfo(service service.PublishingService) ([]byte, int) {
@@ -223,12 +214,16 @@ func handleGetUserDatasetProposals(claims *authorizer.Claims, service service.Pu
 	return jsonBody, 200
 }
 
-// TODO: ensure the user in on Publishers Team in the Workspace
-func handleGetWorkspaceDatasetProposals(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
-	// get workspace id from Organization Claim
-	id := claims.OrgClaim.IntId
+func handleGetWorkspaceDatasetProposals(authorized Authorizer, claims *authorizer.Claims, service service.PublishingService, request events.APIGatewayV2HTTPRequest) ([]byte, int) {
+	log.WithFields(log.Fields{}).Info("handleGetWorkspaceDatasetProposals")
+	if !authorized(claims) {
+		return nil, 401
+	}
 
-	// get ProposalNodeId from request query parameters
+	// get workspace NodeId from Organization Claim
+	orgNodeId := claims.OrgClaim.NodeId
+
+	// get proposal status from request query parameters (default = 'SUBMITTED')
 	var status string
 	var found bool
 	queryParams := request.QueryStringParameters
@@ -236,7 +231,9 @@ func handleGetWorkspaceDatasetProposals(request events.APIGatewayV2HTTPRequest, 
 		status = "SUBMITTED"
 	}
 
-	result, err := service.GetDatasetProposalsForWorkspace(id, status)
+	// TODO: only permit query where status is SUBMITTED, ACCEPTED or REJECTED; else return a 400?
+
+	result, err := service.GetDatasetProposalsForWorkspace(orgNodeId, status)
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
 		return nil, 500
@@ -427,8 +424,11 @@ func handleWithdrawDatasetProposal(request events.APIGatewayV2HTTPRequest, claim
 
 }
 
-func handleAcceptDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
-	log.WithFields(log.Fields{}).Debug("handleAcceptDatasetProposal()")
+func handleAcceptDatasetProposal(authorized Authorizer, claims *authorizer.Claims, service service.PublishingService, request events.APIGatewayV2HTTPRequest) ([]byte, int) {
+	log.WithFields(log.Fields{}).Info("handleAcceptDatasetProposal")
+	if !authorized(claims) {
+		return nil, 401
+	}
 
 	var err error
 	var nodeId string
@@ -440,10 +440,10 @@ func handleAcceptDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 		return nil, 400
 	}
 
-	repositoryId := claims.OrgClaim.IntId
-	log.WithFields(log.Fields{"repositoryId": repositoryId, "nodeId": nodeId}).Debug("handleAcceptDatasetProposal()")
+	orgNodeId := claims.OrgClaim.NodeId
+	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "nodeId": nodeId}).Debug("handleAcceptDatasetProposal()")
 
-	proposalDTO, err := service.AcceptDatasetProposal(int(repositoryId), nodeId)
+	proposalDTO, err := service.AcceptDatasetProposal(orgNodeId, nodeId)
 	if err != nil {
 		log.WithFields(log.Fields{"failure": "AcceptDatasetProposal", "err": fmt.Sprintf("%+v", err)}).Error("handleAcceptDatasetProposal()")
 		return nil, 400
@@ -459,8 +459,11 @@ func handleAcceptDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	return jsonBody, 200
 }
 
-func handleRejectDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
-	log.WithFields(log.Fields{}).Debug("handleRejectDatasetProposal()")
+func handleRejectDatasetProposal(authorized Authorizer, claims *authorizer.Claims, service service.PublishingService, request events.APIGatewayV2HTTPRequest) ([]byte, int) {
+	log.WithFields(log.Fields{}).Info("handleRejectDatasetProposal")
+	if !authorized(claims) {
+		return nil, 401
+	}
 
 	var err error
 	var nodeId string
@@ -472,10 +475,10 @@ func handleRejectDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 		return nil, 400
 	}
 
-	repositoryId := claims.OrgClaim.IntId
-	log.WithFields(log.Fields{"repositoryId": repositoryId, "nodeId": nodeId}).Debug("handleRejectDatasetProposal()")
+	orgNodeId := claims.OrgClaim.NodeId
+	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "nodeId": nodeId}).Debug("handleRejectDatasetProposal()")
 
-	proposalDTO, err := service.RejectDatasetProposal(int(repositoryId), nodeId)
+	proposalDTO, err := service.RejectDatasetProposal(orgNodeId, nodeId)
 	if err != nil {
 		return nil, 400
 	}

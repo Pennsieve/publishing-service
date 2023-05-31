@@ -22,14 +22,14 @@ type PublishingService interface {
 	GetProposalQuestions() ([]dtos.QuestionDTO, error)
 	GetDatasetProposal(userId int, nodeId string) (dtos.DatasetProposalDTO, error)
 	GetDatasetProposalsForUser(id int64) ([]dtos.DatasetProposalDTO, error)
-	GetDatasetProposalsForWorkspace(id int64, status string) ([]dtos.DatasetProposalDTO, error)
+	GetDatasetProposalsForWorkspace(orgNodeId string, status string) ([]dtos.DatasetProposalDTO, error)
 	CreateDatasetProposal(userId int64, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	UpdateDatasetProposal(userId int64, existing dtos.DatasetProposalDTO, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error)
 	DeleteDatasetProposal(proposal dtos.DatasetProposalDTO) (bool, error)
 	SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error)
 	WithdrawDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error)
-	AcceptDatasetProposal(repositoryId int, nodeId string) (*dtos.DatasetProposalDTO, error)
-	RejectDatasetProposal(repositoryId int, nodeId string) (*dtos.DatasetProposalDTO, error)
+	AcceptDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error)
+	RejectDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error)
 }
 
 func NewPublishingService(pubStore store.PublishingStore, pennsieve store.PennsievePublishingStore, notifier notification.Notifier) *publishingService {
@@ -238,12 +238,12 @@ func (s *publishingService) GetDatasetProposalsForUser(userId int64) ([]dtos.Dat
 	return proposalDTOsList(proposals), nil
 }
 
-func (s *publishingService) GetDatasetProposalsForWorkspace(id int64, status string) ([]dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"id": id, "status": status}).Info("service.GetDatasetProposalsForWorkspace()")
+func (s *publishingService) GetDatasetProposalsForWorkspace(orgNodeId string, status string) ([]dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "status": status}).Info("service.GetDatasetProposalsForWorkspace()")
 
 	// TODO: verify that status is one of: SUBMITTED, ACCEPTED, REJECTED
 
-	proposals, err := s.store.GetDatasetProposalsForWorkspace(id, status)
+	proposals, err := s.store.GetDatasetProposalsForWorkspace(orgNodeId, status)
 	if err != nil {
 		return nil, err
 	}
@@ -467,11 +467,11 @@ func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (
 	return &dtoResult, nil
 }
 
-func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"repositoryId": repositoryId, "nodeId": nodeId}).Info("service.AcceptDatasetProposal()")
+func (s *publishingService) AcceptDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "nodeId": nodeId}).Info("service.AcceptDatasetProposal()")
 
 	// get Dataset Proposal by Repository Id and Node Id
-	proposal, err := s.store.GetDatasetProposalForRepository(repositoryId, "SUBMITTED", nodeId)
+	proposal, err := s.store.GetDatasetProposalForRepository(orgNodeId, "SUBMITTED", nodeId)
 	if err != nil {
 		return nil, err
 	}
@@ -520,11 +520,11 @@ func (s *publishingService) AcceptDatasetProposal(repositoryId int, nodeId strin
 	return &dtoResult, nil
 }
 
-func (s *publishingService) RejectDatasetProposal(repositoryId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"repositoryId": repositoryId, "nodeId": nodeId}).Info("service.RejectDatasetProposal()")
+func (s *publishingService) RejectDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error) {
+	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "nodeId": nodeId}).Info("service.RejectDatasetProposal()")
 
 	// get Dataset Proposal by Repository Id and Node Id
-	proposal, err := s.store.GetDatasetProposalForRepository(repositoryId, "SUBMITTED", nodeId)
+	proposal, err := s.store.GetDatasetProposalForRepository(orgNodeId, "SUBMITTED", nodeId)
 	if err != nil {
 		return nil, err
 	}

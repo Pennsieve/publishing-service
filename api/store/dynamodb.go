@@ -20,8 +20,8 @@ type PublishingStore interface {
 	GetQuestions() ([]models.Question, error)
 	GetDatasetProposal(userId int, nodeId string) (*models.DatasetProposal, error)
 	GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error)
-	GetDatasetProposalsForWorkspace(workspaceId int64, status string) ([]models.DatasetProposal, error)
-	GetDatasetProposalForRepository(repositoryId int, status string, nodeId string) (*models.DatasetProposal, error)
+	GetDatasetProposalsForWorkspace(orgNodeId string, status string) ([]models.DatasetProposal, error)
+	GetDatasetProposalForRepository(orgNodeId string, status string, nodeId string) (*models.DatasetProposal, error)
 	CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error)
 	UpdateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error)
 	DeleteDatasetProposal(proposal *models.DatasetProposal) error
@@ -250,15 +250,15 @@ func (s *publishingStore) GetDatasetProposalsForUser(userId int64) ([]models.Dat
 	return find[models.DatasetProposal](s.db, &queryInput)
 }
 
-func (s *publishingStore) GetDatasetProposalsForWorkspace(workspaceId int64, status string) ([]models.DatasetProposal, error) {
-	log.WithFields(log.Fields{"workspaceId": workspaceId}).Info("store.GetDatasetProposalsForWorkspace()")
+func (s *publishingStore) GetDatasetProposalsForWorkspace(orgNodeId string, status string) ([]models.DatasetProposal, error) {
+	log.WithFields(log.Fields{"orgNodeId": orgNodeId}).Info("store.GetDatasetProposalsForWorkspace()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
 		IndexName:              aws.String("RepositoryProposalStatusIndex"),
-		KeyConditionExpression: aws.String("RepositoryId = :workspaceId AND ProposalStatus = :status"),
+		KeyConditionExpression: aws.String("OrganizationNodeId = :orgNodeId AND ProposalStatus = :status"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":workspaceId": &types.AttributeValueMemberN{
-				Value: int64ToString(workspaceId),
+			":orgNodeId": &types.AttributeValueMemberS{
+				Value: orgNodeId,
 			},
 			":status": &types.AttributeValueMemberS{
 				Value: status,
@@ -322,17 +322,17 @@ func (s *publishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal
 	return nil
 }
 
-func (s *publishingStore) GetDatasetProposalForRepository(repositoryId int, status string, nodeId string) (*models.DatasetProposal, error) {
-	log.WithFields(log.Fields{"repositoryId": repositoryId, "status": status, "nodeId": nodeId}).Info("store.GetDatasetProposalForRepositoryWithStatus()")
+func (s *publishingStore) GetDatasetProposalForRepository(orgNodeId string, status string, nodeId string) (*models.DatasetProposal, error) {
+	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "status": status, "nodeId": nodeId}).Info("store.GetDatasetProposalForRepositoryWithStatus()")
 
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
 		IndexName:              aws.String("RepositoryProposalStatusIndex"),
-		KeyConditionExpression: aws.String("RepositoryId = :repositoryId AND ProposalStatus = :status"),
+		KeyConditionExpression: aws.String("OrganizationNodeId = :orgNodeId AND ProposalStatus = :status"),
 		FilterExpression:       aws.String("NodeId = :nodeId"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":repositoryId": &types.AttributeValueMemberN{
-				Value: intToString(repositoryId),
+			":orgNodeId": &types.AttributeValueMemberS{
+				Value: orgNodeId,
 			},
 			":status": &types.AttributeValueMemberS{
 				Value: status,
