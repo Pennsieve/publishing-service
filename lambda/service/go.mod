@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/pennsieve/pennsieve-go-core v1.7.3
+	github.com/pennsieve/pennsieve-go-core v1.7.4
 	github.com/valyala/fastjson v1.6.4
 )
 
