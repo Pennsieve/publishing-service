@@ -9,8 +9,14 @@ updates:
     directory: "/api" # Location of package manifests
     schedule:
       interval: "weekly"
+    allow:
+      - dependency-name: "github.com/pennsieve/pennsieve-go-core"
+        dependency-type: "direct"
   
   - package-ecosystem: "gomod" # See documentation for possible values
     directory: "/lambda/handler" # Location of package manifests
     schedule:
       interval: "weekly"
+    allow:
+      - dependency-name: "github.com/pennsieve/pennsieve-go-core"
+        dependency-type: "direct"
