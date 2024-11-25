@@ -19,20 +19,20 @@ type PennsievePublishingStore interface {
 	GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.Organization, error)
 }
 
-func NewPennsieveStore(db *sql.DB, orgId int64) *pennsieveStore {
+func NewPennsieveStore(db *sql.DB, orgId int64) *ThePennsieveStore {
 	dbTx, err := db.BeginTx(context.TODO(), nil)
 	if err != nil {
 		panic(err)
 	}
 
-	return &pennsieveStore{
+	return &ThePennsieveStore{
 		orgId: orgId,
 		db:    db,
 		q:     pgdbQueries.New(dbTx),
 	}
 }
 
-type pennsieveStore struct {
+type ThePennsieveStore struct {
 	orgId int64
 	db    *sql.DB
 	q     *pgdbQueries.Queries
@@ -60,7 +60,7 @@ func setOrgSearchPath(db *sql.DB, orgId int64) error {
 // is backed by a database transaction. Any methods fn runs against the passed in SQLStore will run
 // in this transaction. If fn returns a non-nil error, the transaction will be rolled back.
 // Otherwise, the transaction will be committed.
-func (p *pennsieveStore) ExecStoreTx(ctx context.Context, orgId int64, fn func(store *pgdbQueries.Queries) error) error {
+func (p *ThePennsieveStore) ExecStoreTx(ctx context.Context, orgId int64, fn func(store *pgdbQueries.Queries) error) error {
 	var err error
 
 	// if organization id was provided, then set search path
@@ -87,19 +87,19 @@ func (p *pennsieveStore) ExecStoreTx(ctx context.Context, orgId int64, fn func(s
 	return tx.Commit()
 }
 
-func (p *pennsieveStore) GetProposalUser(ctx context.Context, userId int64) (*pgdbModels.User, error) {
+func (p *ThePennsieveStore) GetProposalUser(ctx context.Context, userId int64) (*pgdbModels.User, error) {
 	return p.q.GetUserById(ctx, userId)
 }
 
-func (p *pennsieveStore) GetRepositoryWorkspace(ctx context.Context, repository *models.Repository) (*pgdbModels.Organization, error) {
+func (p *ThePennsieveStore) GetRepositoryWorkspace(ctx context.Context, repository *models.Repository) (*pgdbModels.Organization, error) {
 	return p.q.GetOrganizationByNodeId(ctx, repository.OrganizationNodeId)
 }
 
-func (p *pennsieveStore) GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.Organization, error) {
+func (p *ThePennsieveStore) GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.Organization, error) {
 	return p.q.GetOrganizationBySlug(ctx, "welcome_to_pennsieve")
 }
 
-func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, repository *models.Repository) ([]models.Publisher, error) {
+func (p *ThePennsieveStore) GetPublishingTeam(ctx context.Context, repository *models.Repository) ([]models.Publisher, error) {
 	query := "select " +
 		"  o.id as Workspace_Id, " +
 		"  o.name as Workspace_Name, " +
@@ -151,7 +151,7 @@ func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, repository *mode
 	return publishers, nil
 }
 
-func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error) {
+func (p *ThePennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error) {
 	var err error
 
 	// Get the Pennsieve User

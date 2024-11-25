@@ -5,16 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/google/uuid"
 	"github.com/pennsieve/pennsieve-go-core/pkg/authorizer"
 	"github.com/pennsieve/pennsieve-go-core/pkg/queries/pgdb"
 	"github.com/pennsieve/publishing-service/api/dtos"
 	"github.com/pennsieve/publishing-service/api/notification"
 	"github.com/pennsieve/publishing-service/api/service"
 	"github.com/pennsieve/publishing-service/api/store"
+	"github.com/pennsieve/publishing-service/service/container"
 	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fastjson"
+	"net/http"
 	"os"
 	"regexp"
+	"time"
 )
 
 func init() {
@@ -27,15 +31,83 @@ func init() {
 	}
 }
 
-func PublishingServiceHandler(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
-	var err error
-	var response *events.APIGatewayV2HTTPResponse
+func PublishingServiceHandler(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+	r := regexp.MustCompile(`(?P<method>) (?P<pathKey>.*)`)
+	routeKeyParts := r.FindStringSubmatch(request.RouteKey)
+	routeKey := routeKeyParts[r.SubexpIndex("pathKey")]
+	httpMethod := request.RequestContext.HTTP.Method
 
-	log.Println("PublishingServiceHandler() ")
+	var (
+		ctx    context.Context
+		cancel context.CancelFunc
+	)
 
-	response, err = handleRequest(request)
+	if timeout, ok := request.QueryStringParameters["timeout"]; ok {
+		duration, err := time.ParseDuration(timeout)
+		if err != nil {
+			duration = 300
+		}
+		ctx, cancel = context.WithTimeout(context.Background(), duration*time.Second)
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+	defer cancel()
 
-	return response, err
+	requestId := uuid.New().String()
+	ctx = context.WithValue(ctx, "requestId", requestId)
+
+	log.WithFields(log.Fields{
+		"method":    httpMethod,
+		"route":     routeKey,
+		"requestId": requestId,
+	}).Info("PublishingServiceHandler()")
+
+	if organizationId, ok := request.QueryStringParameters["organization_id"]; ok {
+		ctx = context.WithValue(ctx, "organizationId", organizationId)
+	}
+
+	router := NewLambdaRouter()
+
+	router.GET("/publishing/info", GetPublishingInfo)
+	router.GET("/publishing/repositories", GetPublishingRepositories)
+	router.GET("/publishing/questions", GetPublishingQuestions)
+
+	// proposal actions
+	router.GET("/publishing/proposal", GetUserDatasetProposals)
+	router.POST("/publishing/proposal", CreateDatasetProposal)
+	router.PUT("/publishing/proposal", UpdateDatasetProposal)
+	router.DELETE("/publishing/proposal", DeleteDatasetProposal)
+
+	// user actions
+	router.POST("/publishing/proposal/submit", SubmitDatasetProposal)
+	router.POST("/publishing/proposal/withdraw", WithdrawDatasetProposal)
+
+	// workspace actions
+	router.GET("/publishing/submission", GetWorkspaceDatasetProposals)
+	router.POST("/publishing/submission/accept", AcceptDatasetProposal)
+	router.POST("/publishing/submission/reject", RejectDatasetProposal)
+
+	container, err := container.NewContainer(ctx)
+	if err != nil {
+		// TODO: log the error
+		return events.APIGatewayV2HTTPResponse{
+			StatusCode: http.StatusInternalServerError,
+			Body:       err.Error(),
+		}, err
+	}
+
+	response, err := router.Start(ctx, request, container)
+	if err != nil {
+		// TODO: log the error in a better way
+		log.Error(err)
+		return events.APIGatewayV2HTTPResponse{
+			StatusCode: http.StatusInternalServerError,
+			Body:       err.Error(),
+		}, err
+	}
+
+	// TODO: log the response (at info)
+	return response, nil
 }
 
 func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
@@ -66,49 +138,49 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 	httpMethod := request.RequestContext.HTTP.Method
 
 	log.WithFields(log.Fields{"method": httpMethod, "route": routeKey}).Info("handleRequest()")
-	
+
 	switch routeKey {
-	case "/publishing/info":
-		switch httpMethod {
-		case "GET":
-			jsonBody, statusCode = handleGetPublishingInfo(service)
-		}
-	case "/publishing/repositories":
-		switch httpMethod {
-		case "GET":
-			jsonBody, statusCode = handleGetPublishingRepositories(service)
-		}
-	case "/publishing/questions":
-		switch httpMethod {
-		case "GET":
-			jsonBody, statusCode = handleGetProposalQuestions(service)
-		}
-	case "/publishing/proposal":
-		switch httpMethod {
-		case "GET":
-			if ok := authorizedAuthor(claims); ok {
-				jsonBody, statusCode = handleGetUserDatasetProposals(claims, service)
-			} else {
-				jsonBody = nil
-				statusCode = 401
-			}
-		case "POST":
-			jsonBody, statusCode = handleCreateDatasetProposal(request, claims, service)
-		case "PUT":
-			jsonBody, statusCode = handleUpdateDatasetProposal(request, claims, service)
-		case "DELETE":
-			jsonBody, statusCode = handleDeleteDatasetProposal(request, claims, service)
-		}
-	case "/publishing/proposal/submit":
-		switch httpMethod {
-		case "POST":
-			jsonBody, statusCode = handleSubmitDatasetProposal(request, claims, service)
-		}
-	case "/publishing/proposal/withdraw":
-		switch httpMethod {
-		case "POST":
-			jsonBody, statusCode = handleWithdrawDatasetProposal(request, claims, service)
-		}
+	//case "/publishing/info":
+	//	switch httpMethod {
+	//	case "GET":
+	//		jsonBody, statusCode = handleGetPublishingInfo(service)
+	//	}
+	//case "/publishing/repositories":
+	//	switch httpMethod {
+	//	case "GET":
+	//		jsonBody, statusCode = handleGetPublishingRepositories(service)
+	//	}
+	//case "/publishing/questions":
+	//	switch httpMethod {
+	//	case "GET":
+	//		jsonBody, statusCode = handleGetProposalQuestions(service)
+	//	}
+	//case "/publishing/proposal":
+	//	switch httpMethod {
+	//	//case "GET":
+	//	//	if ok := authorizedAuthor(claims); ok {
+	//	//		jsonBody, statusCode = handleGetUserDatasetProposals(claims, service)
+	//	//	} else {
+	//	//		jsonBody = nil
+	//	//		statusCode = 401
+	//	//	}
+	//	//case "POST":
+	//	//	jsonBody, statusCode = handleCreateDatasetProposal(request, claims, service)
+	//	//case "PUT":
+	//	//	jsonBody, statusCode = handleUpdateDatasetProposal(request, claims, service)
+	//	//case "DELETE":
+	//	//	jsonBody, statusCode = handleDeleteDatasetProposal(request, claims, service)
+	//	}
+	//case "/publishing/proposal/submit":
+	//	switch httpMethod {
+	//	case "POST":
+	//		jsonBody, statusCode = handleSubmitDatasetProposal(request, claims, service)
+	//	}
+	//case "/publishing/proposal/withdraw":
+	//	switch httpMethod {
+	//	case "POST":
+	//		jsonBody, statusCode = handleWithdrawDatasetProposal(request, claims, service)
+	//	}
 	case "/publishing/submission":
 		switch httpMethod {
 		case "GET":

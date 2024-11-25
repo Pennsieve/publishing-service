@@ -32,15 +32,15 @@ type PublishingService interface {
 	RejectDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error)
 }
 
-func NewPublishingService(pubStore store.PublishingStore, pennsieve store.PennsievePublishingStore, notifier notification.Notifier) *publishingService {
-	return &publishingService{
+func NewPublishingService(pubStore store.PublishingStore, pennsieve store.PennsievePublishingStore, notifier notification.Notifier) *ThePublishingService {
+	return &ThePublishingService{
 		store:     pubStore,
 		pennsieve: pennsieve,
 		notifier:  notifier,
 	}
 }
 
-type publishingService struct {
+type ThePublishingService struct {
 	store     store.PublishingStore
 	pennsieve store.PennsievePublishingStore
 	notifier  notification.Notifier
@@ -60,7 +60,7 @@ func sendEmail(ctx context.Context, sender string, recipients []string, subject 
 	return err
 }
 
-func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposal, action notification.Notification, repository *models.Repository) error {
+func (s *ThePublishingService) notifyPublishingTeam(proposal *models.DatasetProposal, action notification.Notification, repository *models.Repository) error {
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal), "action": action, "repository": fmt.Sprintf("%+v", repository)}).Info("service.notifyPublishingTeam()")
 
 	ctx := context.TODO()
@@ -99,7 +99,7 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 	return err
 }
 
-func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal, action notification.Notification, repository *models.Repository) error {
+func (s *ThePublishingService) notifyProposalOwner(proposal *models.DatasetProposal, action notification.Notification, repository *models.Repository) error {
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal), "action": action, "repository": fmt.Sprintf("%+v", repository)}).Info("service.notifyProposalOwner()")
 
 	ctx := context.TODO()
@@ -135,7 +135,7 @@ func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal
 	return err
 }
 
-func (s *publishingService) GetPublishingInfo() ([]dtos.InfoDTO, error) {
+func (s *ThePublishingService) GetPublishingInfo() ([]dtos.InfoDTO, error) {
 	log.Println("GetPublishingInfo()")
 	var err error
 
@@ -153,7 +153,7 @@ func (s *publishingService) GetPublishingInfo() ([]dtos.InfoDTO, error) {
 	return infoDTOs, nil
 }
 
-func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, error) {
+func (s *ThePublishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, error) {
 	log.Println("GetPublishingRepositories()")
 	var err error
 
@@ -183,7 +183,7 @@ func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, e
 	return repositoryDTOs, nil
 }
 
-func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
+func (s *ThePublishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
 	log.Println("GetProposalQuestions()")
 	var err error
 
@@ -212,7 +212,7 @@ func proposalDTOsList(proposals []models.DatasetProposal) []dtos.DatasetProposal
 	return proposalDTOs
 }
 
-func (s *publishingService) GetDatasetProposal(userId int, nodeId string) (dtos.DatasetProposalDTO, error) {
+func (s *ThePublishingService) GetDatasetProposal(userId int, nodeId string) (dtos.DatasetProposalDTO, error) {
 	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.GetDatasetProposal()")
 
 	proposal, err := s.store.GetDatasetProposal(userId, nodeId)
@@ -226,7 +226,7 @@ func (s *publishingService) GetDatasetProposal(userId int, nodeId string) (dtos.
 	return proposalDTO, nil
 }
 
-func (s *publishingService) GetDatasetProposalsForUser(userId int64) ([]dtos.DatasetProposalDTO, error) {
+func (s *ThePublishingService) GetDatasetProposalsForUser(userId int64) ([]dtos.DatasetProposalDTO, error) {
 	log.WithFields(log.Fields{"userId": userId}).Info("service.GetDatasetProposalsForUser()")
 
 	proposals, err := s.store.GetDatasetProposalsForUser(userId)
@@ -238,7 +238,7 @@ func (s *publishingService) GetDatasetProposalsForUser(userId int64) ([]dtos.Dat
 	return proposalDTOsList(proposals), nil
 }
 
-func (s *publishingService) GetDatasetProposalsForWorkspace(orgNodeId string, status string) ([]dtos.DatasetProposalDTO, error) {
+func (s *ThePublishingService) GetDatasetProposalsForWorkspace(orgNodeId string, status string) ([]dtos.DatasetProposalDTO, error) {
 	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "status": status}).Info("service.GetDatasetProposalsForWorkspace()")
 
 	// TODO: verify that status is one of: SUBMITTED, ACCEPTED, REJECTED
@@ -254,7 +254,7 @@ func (s *publishingService) GetDatasetProposalsForWorkspace(orgNodeId string, st
 // TODO: validate RepositoryId, ensure it is in Repositories table
 // TODO: move generating ProposalNodeId string elsewhere (pennsieve-core?)
 // TODO: refactor Create..() and Update..() to use common code
-func (s *publishingService) CreateDatasetProposal(userId int64, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
+func (s *ThePublishingService) CreateDatasetProposal(userId int64, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
 	log.Println("service.CreateDatasetProposal()")
 
 	user, err := s.pennsieve.GetProposalUser(context.TODO(), userId)
@@ -301,7 +301,7 @@ func (s *publishingService) CreateDatasetProposal(userId int64, dto dtos.Dataset
 	return &dtoResult, nil
 }
 
-func (s *publishingService) UpdateDatasetProposal(userId int64, existing dtos.DatasetProposalDTO, update dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
+func (s *ThePublishingService) UpdateDatasetProposal(userId int64, existing dtos.DatasetProposalDTO, update dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
 	log.WithFields(log.Fields{"userId": userId, "existing": fmt.Sprintf("%+v", existing), "update": fmt.Sprintf("%+v", update)}).Info("service.UpdateDatasetProposal()")
 
 	user, err := s.pennsieve.GetProposalUser(context.TODO(), userId)
@@ -348,7 +348,7 @@ func (s *publishingService) UpdateDatasetProposal(userId int64, existing dtos.Da
 	return &dtoResult, nil
 }
 
-func (s *publishingService) DeleteDatasetProposal(proposalDTO dtos.DatasetProposalDTO) (bool, error) {
+func (s *ThePublishingService) DeleteDatasetProposal(proposalDTO dtos.DatasetProposalDTO) (bool, error) {
 	log.WithFields(log.Fields{"proposalDTO": fmt.Sprintf("%+v", proposalDTO)}).Info("service.DeleteDatasetProposal()")
 
 	proposal := dtos.BuildDatasetProposal(proposalDTO)
@@ -362,7 +362,7 @@ func (s *publishingService) DeleteDatasetProposal(proposalDTO dtos.DatasetPropos
 	return true, nil
 }
 
-func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
+func (s *ThePublishingService) SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
 	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.SubmitDatasetProposal()")
 
 	// get Dataset Proposal by User Id and Node Id
@@ -426,7 +426,7 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 	return &dtoResult, nil
 }
 
-func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
+func (s *ThePublishingService) WithdrawDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
 	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.WithdrawDatasetProposal()")
 
 	// get Dataset Proposal by User Id and Node Id
@@ -467,7 +467,7 @@ func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (
 	return &dtoResult, nil
 }
 
-func (s *publishingService) AcceptDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error) {
+func (s *ThePublishingService) AcceptDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error) {
 	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "nodeId": nodeId}).Info("service.AcceptDatasetProposal()")
 
 	// get Dataset Proposal by Repository Id and Node Id
@@ -520,7 +520,7 @@ func (s *publishingService) AcceptDatasetProposal(orgNodeId string, nodeId strin
 	return &dtoResult, nil
 }
 
-func (s *publishingService) RejectDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error) {
+func (s *ThePublishingService) RejectDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error) {
 	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "nodeId": nodeId}).Info("service.RejectDatasetProposal()")
 
 	// get Dataset Proposal by Repository Id and Node Id

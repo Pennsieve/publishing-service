@@ -32,7 +32,7 @@ func getTableName(tableName string) string {
 	return table
 }
 
-func NewPublishingStore() *publishingStore {
+func NewPublishingStore() *ThePublishingStore {
 	// TODO: handle and/or propagate errors
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
@@ -41,7 +41,7 @@ func NewPublishingStore() *publishingStore {
 
 	db := dynamodb.NewFromConfig(cfg)
 
-	return &publishingStore{
+	return &ThePublishingStore{
 		db:                    db,
 		infoTable:             getTableName("PUBLISHING_INFO_TABLE"),
 		repositoriesTable:     getTableName("REPOSITORIES_TABLE"),
@@ -50,7 +50,7 @@ func NewPublishingStore() *publishingStore {
 	}
 }
 
-type publishingStore struct {
+type ThePublishingStore struct {
 	db                    *dynamodb.Client
 	infoTable             string
 	repositoriesTable     string
@@ -190,17 +190,17 @@ func store(client *dynamodb.Client, table string, item *models.DatasetProposal) 
 	})
 }
 
-func (s *publishingStore) GetInfo() ([]models.Info, error) {
+func (s *ThePublishingStore) GetInfo() ([]models.Info, error) {
 	log.Info("store.GetInfo()")
 	return fetch[models.Info](s.db, s.infoTable)
 }
 
-func (s *publishingStore) GetRepositories() ([]models.Repository, error) {
+func (s *ThePublishingStore) GetRepositories() ([]models.Repository, error) {
 	log.Info("store.GetRepositories()")
 	return fetch[models.Repository](s.db, s.repositoriesTable)
 }
 
-func (s *publishingStore) GetRepository(organizationNodeId string) (*models.Repository, error) {
+func (s *ThePublishingStore) GetRepository(organizationNodeId string) (*models.Repository, error) {
 	log.WithFields(log.Fields{"organizationNodeId": organizationNodeId}).Info("GetRepository()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.repositoriesTable),
@@ -214,12 +214,12 @@ func (s *publishingStore) GetRepository(organizationNodeId string) (*models.Repo
 	return get[models.Repository](s.db, &queryInput)
 }
 
-func (s *publishingStore) GetQuestions() ([]models.Question, error) {
+func (s *ThePublishingStore) GetQuestions() ([]models.Question, error) {
 	log.Info("store.GetQuestions()")
 	return fetch[models.Question](s.db, s.questionsTable)
 }
 
-func (s *publishingStore) GetDatasetProposal(userId int, nodeId string) (*models.DatasetProposal, error) {
+func (s *ThePublishingStore) GetDatasetProposal(userId int, nodeId string) (*models.DatasetProposal, error) {
 	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("store.GetDatasetProposal()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
@@ -236,7 +236,7 @@ func (s *publishingStore) GetDatasetProposal(userId int, nodeId string) (*models
 	return get[models.DatasetProposal](s.db, &queryInput)
 }
 
-func (s *publishingStore) GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error) {
+func (s *ThePublishingStore) GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error) {
 	log.WithFields(log.Fields{"userId": userId}).Info("store.GetDatasetProposalsForUser()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
@@ -250,7 +250,7 @@ func (s *publishingStore) GetDatasetProposalsForUser(userId int64) ([]models.Dat
 	return find[models.DatasetProposal](s.db, &queryInput)
 }
 
-func (s *publishingStore) GetDatasetProposalsForWorkspace(orgNodeId string, status string) ([]models.DatasetProposal, error) {
+func (s *ThePublishingStore) GetDatasetProposalsForWorkspace(orgNodeId string, status string) ([]models.DatasetProposal, error) {
 	log.WithFields(log.Fields{"orgNodeId": orgNodeId}).Info("store.GetDatasetProposalsForWorkspace()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
@@ -269,7 +269,7 @@ func (s *publishingStore) GetDatasetProposalsForWorkspace(orgNodeId string, stat
 	return find[models.DatasetProposal](s.db, &queryInput)
 }
 
-func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
+func (s *ThePublishingStore) CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
 	log.Info("store.CreateDatasetProposal()")
 
 	result, err := store(s.db, s.datasetProposalsTable, proposal)
@@ -282,7 +282,7 @@ func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal
 	return proposal, nil
 }
 
-func (s *publishingStore) UpdateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
+func (s *ThePublishingStore) UpdateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
 	log.Info("store.UpdateDatasetProposal()")
 
 	result, err := store(s.db, s.datasetProposalsTable, proposal)
@@ -295,7 +295,7 @@ func (s *publishingStore) UpdateDatasetProposal(proposal *models.DatasetProposal
 	return proposal, nil
 }
 
-func (s *publishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal) error {
+func (s *ThePublishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal) error {
 	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Info("store.DeleteDatasetProposal()")
 
 	var err error
@@ -322,7 +322,7 @@ func (s *publishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal
 	return nil
 }
 
-func (s *publishingStore) GetDatasetProposalForRepository(orgNodeId string, status string, nodeId string) (*models.DatasetProposal, error) {
+func (s *ThePublishingStore) GetDatasetProposalForRepository(orgNodeId string, status string, nodeId string) (*models.DatasetProposal, error) {
 	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "status": status, "nodeId": nodeId}).Info("store.GetDatasetProposalForRepositoryWithStatus()")
 
 	queryInput := dynamodb.QueryInput{
