@@ -35,16 +35,14 @@ type Container struct {
 }
 
 func NewContainer(ctx context.Context) (*Container, error) {
-	var organizationId int64
-	organizationIdValue := ctx.Value("organizationId")
-	if organizationId == nil {
+	var (
+		organizationId int64
+		ok             bool
+	)
+	if organizationId, ok = ctx.Value("organizationId").(int64); !ok {
 		organizationId = 0
-	} else {
-		organizationId = organizationIdValue.(int64)
 	}
-
 	config := config.LoadConfig()
-
 	awsConfig, err := awsConfig.LoadDefaultConfig(context.Background())
 	if err != nil {
 		return nil, err
