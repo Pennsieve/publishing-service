@@ -1,0 +1,20 @@
+name: Sync OAS to ReadMe
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Find and Replace
+        uses: jacobtomlinson/gha-find-replace@master
+        with:
+          find: "Unused"
+          replace: "Authorization"
+          include: "terraform/publishing_service.yml"
+      - name: Run `openapi` command 🚀
+        uses: readmeio/rdme@v8
+        with:
+          rdme: openapi terraform/publishing_service.yml --key=${{ secrets.README_OAS_KEY }} --id=682902343b710f00377b100f

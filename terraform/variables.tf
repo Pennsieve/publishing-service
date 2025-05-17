@@ -12,6 +12,8 @@ variable "domain_name" {}
 
 variable "image_tag" {}
 
+variable "api_domain_name" {}
+
 variable "lambda_bucket" {
   default = "pennsieve-cc-lambda-functions-use1"
 }

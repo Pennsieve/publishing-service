@@ -1,0 +1,468 @@
+openapi: 3.0.1
+info:
+  version: "3.0"
+  title: Open Repository Services
+  description: |
+    This is the serverless publishing-api
+  termsOfService: https://docs.pennsieve.io/page/pennsieve-terms-of-use
+  contact:
+    name: Pennsieve Support
+    email: support@pennsieve.net
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+servers:
+  - url: https://api2.pennsieve.io/timeseries
+    description: Production server
+  - url: https://api2.pennsieve.net/timeseries
+    description: Development server
+externalDocs:
+  description: Find more info here
+  url: https://docs.pennsieve.io
+tags:
+  - name: Publishing Service
+    description: Management of publishing requests and open repositories
+    externalDocs:
+      url: https://docs.pennsieve.io/reference
+components:
+  x-amazon-apigateway-integrations:
+    publishing-service:
+      type: aws_proxy
+      uri: ${publishing_service_lambda_arn}
+      httpMethod: POST
+      passthroughBehavior: when_no_match
+      contentHandling: CONVERT_TO_TEXT
+      payloadFormatVersion: 2.0
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+    BasicAuth:
+      type: http
+      scheme: basic
+
+    token_dataset_auth:
+      type: "apiKey"
+      name: "Unused"
+      in: "header"
+      x-amazon-apigateway-authorizer:
+        identitySource: "$request.header.Authorization,$request.querystring.dataset_id"
+        authorizerUri: ${authorize_lambda_invoke_uri}
+        authorizerPayloadFormatVersion: "2.0"
+        authorizerResultTtlInSeconds: 300
+        type: "request"
+        enableSimpleResponses: true
+        authorizerCredentials: ${gateway_authorizer_role}
+  responses:
+    Unauthorized:
+      description: Incorrect authentication or user has incorrect permissions.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    Error:
+      description: Server Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+  schemas:
+    surveyResponse:
+      type: object
+      properties:
+        questionId:
+          type: integer
+          description: the intake question number
+        response:
+          type: string
+          description: the user response to the intake question
+    datasetProposal:
+      type: object
+      properties:
+        userId:
+          type: integer
+          description: the user id number
+        proposalId:
+          type: integer
+          description: the proposal id number
+        proposalNodeId:
+          type: string
+          description: the proposal node id
+        name:
+          type: string
+          description: the name of the dataset proposal
+        description:
+          type: string
+          description: the dataset proposal short description
+        repositoryId:
+          type: integer
+          description: the repository id
+        status:
+          type: string
+          description: the dataset proposal status
+        survey:
+          type: array
+          items:
+            $ref: "#/components/schemas/surveyResponse"
+    datasetProposalsList:
+      type: array
+      items:
+        $ref: "#/components/schemas/datasetProposal"
+    proposalCreateRequest:
+      type: object
+      items:
+        $ref: "#/components/schemas/datasetProposal"
+paths:
+  /info:
+    get:
+      summary: Get Publishing Service Information
+      description: |
+        This method returns a list of Publishing Service Information and URLs to fetch the associated files.
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: getPublishingServiceInformation
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service Information
+      responses:
+        '200':
+          description: The returned Publishing Service Information.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  description: Response for getPublishingServiceInformation endpoint.
+                  properties:
+                    Count:
+                      description: Number of Publishing Service Information pieces.
+                      type: integer
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+  /repositories:
+    get:
+      summary: Get Publishing Repositories
+      description: |
+        This method returns a list of Publishing Repositories.
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: getPublishingRepositories
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      responses:
+        '200':
+          description: The returned Publishing Repositories.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  description: Response for getPublishingRepositories endpoint.
+                  properties:
+                    Count:
+                      description: Number of Publishing Repositories.
+                      type: integer
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+  /questions:
+    get:
+      summary: Get Proposal Questions
+      description: |
+        This method returns a list of intake questions that may be included in Dataset Proposals
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: getProposalQuestions
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      responses:
+        '200':
+          description: The returned intake questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  description: Response for getProposalQuestions endpoint.
+                  properties:
+                    Count:
+                      description: Number of intake questions
+                      type: integer
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+  /proposal:
+    get:
+      summary: Get a User's Dataset Proposals
+      description: |
+        This method returns a list of Dataset Proposals owned by the User
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: getDatasetProposals
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      responses:
+        '200':
+          description: The returned Dataset Proposals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/datasetProposalsList"
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+    post:
+      summary: Create a Dataset Proposal
+      description: |
+        This method will create a Dataset Proposal for the User
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: createDatasetProposal
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      requestBody:
+        description: the Dataset Proposal to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/proposalCreateRequest'
+      responses:
+        '201':
+          description: The created Dataset Proposal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/datasetProposalsList'
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+    put:
+      summary: Update a Dataset Proposal
+      description: |
+        This method will update a Dataset Proposal for the User
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: updateDatasetProposal
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      requestBody:
+        description: the Dataset Proposal to update
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/proposalCreateRequest'
+      responses:
+        '200':
+          description: The updated Dataset Proposal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/datasetProposalsList'
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+    delete:
+      summary: Delete a Dataset Proposal
+      description: |
+        This method will delete a Dataset Proposal for the User
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: deleteDatasetProposal
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      parameters:
+        - in: query
+          name: proposal_node_id
+          required: true
+          schema:
+            type: string
+            minimum: 1
+          description: The Node Id of the Dataset Proposal to be deleted.
+      responses:
+        '200':
+          description: Successfully deleted the Dataset Proposal.
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+  /proposal/submit:
+    post:
+      summary: Submit a Dataset Proposal to a Repository for review
+      description: |
+        This method will submit a Dataset Proposal to a Repository for review.
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: submitDatasetProposal
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      parameters:
+        - in: query
+          name: node_id
+          required: true
+          schema:
+            type: string
+            minimum: 1
+          description: The Node Id of the Dataset Proposal to be submitted.
+      responses:
+        '200':
+          description: Successfully submitted the Dataset Proposal.
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+  /proposal/withdraw:
+    post:
+      summary: Withdraw the request to review a Dataset Proposal from a Repository
+      description: |
+        This method will withdraw the request to review a Dataset Proposal from a Repository.
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: withdrawDatasetProposal
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      parameters:
+        - in: query
+          name: node_id
+          required: true
+          schema:
+            type: string
+            minimum: 1
+          description: The Node Id of the Dataset Proposal to be withdrawn.
+      responses:
+        '200':
+          description: Successfully withdrew the Dataset Proposal.
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+  /submission:
+    get:
+      summary: Get Dataset Proposals submitted to the Repository
+      description: |
+        This method returns a list of Dataset Proposals that have been submitted to the Repository
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: getSubmittedDatasetProposals
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            minimum: 1
+          description: The Dataset Proposal Status
+      responses:
+        '200':
+          description: The returned Dataset Proposals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/datasetProposalsList"
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+  /submission/accept:
+    post:
+      summary: Accept the submitted Dataset Proposal
+      description: |
+        This method will accept the Dataset Proposal that was submitted to a Repository.
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: acceptDatasetProposal
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      parameters:
+        - in: query
+          name: node_id
+          required: true
+          schema:
+            type: string
+            minimum: 1
+          description: The Node Id of the Dataset Proposal to be accepted.
+      responses:
+        '200':
+          description: Successfully accepted the Dataset Proposal.
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
+  /submission/reject:
+    post:
+      summary: Reject the submitted Dataset Proposal
+      description: |
+        This method will reject the Dataset Proposal that was submitted to a Repository.
+      x-amazon-apigateway-integration:
+        $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
+      operationId: rejectDatasetProposal
+      security:
+        - token_auth: [ ]
+      tags:
+        - Publishing Service
+      parameters:
+        - in: query
+          name: node_id
+          required: true
+          schema:
+            type: string
+            minimum: 1
+          description: The Node Id of the Dataset Proposal to be rejected.
+      responses:
+        '200':
+          description: Successfully rejected the Dataset Proposal.
+        '4XX':
+          $ref: '#/components/responses/Unauthorized'
+        '5XX':
+          $ref: '#/components/responses/Error'
