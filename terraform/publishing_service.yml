@@ -34,15 +34,6 @@ components:
       contentHandling: CONVERT_TO_TEXT
       payloadFormatVersion: 2.0
   securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
-    BasicAuth:
-      type: http
-      scheme: basic
-
     token_auth:
       type: "apiKey"
       name: "Authorization"
@@ -67,6 +58,24 @@ components:
                 type: string
     Forbidden:
       description: Forbidden
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    NotFound:
+      description: Not Found
       content:
         application/json:
           schema:
