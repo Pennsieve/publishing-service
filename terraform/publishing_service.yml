@@ -177,8 +177,6 @@ paths:
       x-amazon-apigateway-integration:
         $ref: '#/components/x-amazon-apigateway-integrations/publishing-service'
       operationId: getPublishingRepositories
-      security:
-        - token_auth: [ ]
       tags:
         - Publishing Service
       responses:

@@ -46,25 +46,34 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
     var statusCode int
     var jsonBody []byte
 
-    claims := authorizer.ParseClaims(request.RequestContext.Authorizer.Lambda)
-    orgId := claims.OrgClaim.IntId
-
-    db, err := pgdb.ConnectRDSWithOrg(int(orgId))
-    if err != nil {
-        panic(fmt.Sprintf("unable to connect to RDS database: %s", err))
-    }
-    log.WithFields(log.Fields{"orgId": orgId, "resource": "database", "action": "connect"}).Info("connected to RDS database")
-    defer db.Close()
-
-    pubStore := store.NewPublishingStore()
-    pennsieve := store.NewPennsieveStore(db, orgId)
-    notifier := notification.NewEmailNotifier(context.TODO())
-    service := service.NewPublishingService(pubStore, pennsieve, notifier)
-
     r := regexp.MustCompile(`(?P<method>) (?P<pathKey>.*)`)
     routeKeyParts := r.FindStringSubmatch(request.RouteKey)
     routeKey := routeKeyParts[r.SubexpIndex("pathKey")]
     httpMethod := request.RequestContext.HTTP.Method
+
+    var serviceImpl service.PublishingService
+    var claims *authorizer.Claims
+    switch routeKey {
+    case "/repositories":
+        pubStore := store.NewPublishingStore()
+        serviceImpl = service.NewPublishingService(pubStore, nil, nil)
+
+    default:
+        claims := authorizer.ParseClaims(request.RequestContext.Authorizer.Lambda)
+        orgId := claims.OrgClaim.IntId
+
+        db, err := pgdb.ConnectRDSWithOrg(int(orgId))
+        if err != nil {
+            panic(fmt.Sprintf("unable to connect to RDS database: %s", err))
+        }
+        log.WithFields(log.Fields{"orgId": orgId, "resource": "database", "action": "connect"}).Info("connected to RDS database")
+        defer db.Close()
+
+        pubStore := store.NewPublishingStore()
+        pennsieve := store.NewPennsieveStore(db, orgId)
+        notifier := notification.NewEmailNotifier(context.TODO())
+        serviceImpl = service.NewPublishingService(pubStore, pennsieve, notifier)
+    }
 
     log.WithFields(log.Fields{"method": httpMethod, "route": routeKey}).Info("handleRequest()")
 
@@ -72,58 +81,58 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
     case "/info":
         switch httpMethod {
         case "GET":
-            jsonBody, statusCode = handleGetPublishingInfo(service)
+            jsonBody, statusCode = handleGetPublishingInfo(serviceImpl)
         }
     case "/repositories":
         switch httpMethod {
         case "GET":
-            jsonBody, statusCode = handleGetPublishingRepositories(service)
+            jsonBody, statusCode = handleGetPublishingRepositories(serviceImpl)
         }
     case "/questions":
         switch httpMethod {
         case "GET":
-            jsonBody, statusCode = handleGetProposalQuestions(service)
+            jsonBody, statusCode = handleGetProposalQuestions(serviceImpl)
         }
     case "/proposal":
         switch httpMethod {
         case "GET":
             if ok := authorizedAuthor(claims); ok {
-                jsonBody, statusCode = handleGetUserDatasetProposals(claims, service)
+                jsonBody, statusCode = handleGetUserDatasetProposals(claims, serviceImpl)
             } else {
                 jsonBody = nil
                 statusCode = 401
             }
         case "POST":
-            jsonBody, statusCode = handleCreateDatasetProposal(request, claims, service)
+            jsonBody, statusCode = handleCreateDatasetProposal(request, claims, serviceImpl)
         case "PUT":
-            jsonBody, statusCode = handleUpdateDatasetProposal(request, claims, service)
+            jsonBody, statusCode = handleUpdateDatasetProposal(request, claims, serviceImpl)
         case "DELETE":
-            jsonBody, statusCode = handleDeleteDatasetProposal(request, claims, service)
+            jsonBody, statusCode = handleDeleteDatasetProposal(request, claims, serviceImpl)
         }
     case "/proposal/submit":
         switch httpMethod {
         case "POST":
-            jsonBody, statusCode = handleSubmitDatasetProposal(request, claims, service)
+            jsonBody, statusCode = handleSubmitDatasetProposal(request, claims, serviceImpl)
         }
     case "/proposal/withdraw":
         switch httpMethod {
         case "POST":
-            jsonBody, statusCode = handleWithdrawDatasetProposal(request, claims, service)
+            jsonBody, statusCode = handleWithdrawDatasetProposal(request, claims, serviceImpl)
         }
     case "/submission":
         switch httpMethod {
         case "GET":
-            jsonBody, statusCode = handleGetWorkspaceDatasetProposals(authorizedPublisher, claims, service, request)
+            jsonBody, statusCode = handleGetWorkspaceDatasetProposals(authorizedPublisher, claims, serviceImpl, request)
         }
     case "/submission/accept":
         switch httpMethod {
         case "POST":
-            jsonBody, statusCode = handleAcceptDatasetProposal(authorizedPublisher, claims, service, request)
+            jsonBody, statusCode = handleAcceptDatasetProposal(authorizedPublisher, claims, serviceImpl, request)
         }
     case "/submission/reject":
         switch httpMethod {
         case "POST":
-            jsonBody, statusCode = handleRejectDatasetProposal(authorizedPublisher, claims, service, request)
+            jsonBody, statusCode = handleRejectDatasetProposal(authorizedPublisher, claims, serviceImpl, request)
         }
     default:
         err = errors.New("unknown route")
