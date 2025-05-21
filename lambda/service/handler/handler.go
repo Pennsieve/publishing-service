@@ -59,7 +59,7 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
         serviceImpl = service.NewPublishingService(pubStore, nil, nil)
 
     default:
-        claims := authorizer.ParseClaims(request.RequestContext.Authorizer.Lambda)
+        claims = authorizer.ParseClaims(request.RequestContext.Authorizer.Lambda)
         orgId := claims.OrgClaim.IntId
 
         db, err := pgdb.ConnectRDSWithOrg(int(orgId))
