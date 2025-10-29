@@ -14,7 +14,7 @@ import (
 type PennsievePublishingStore interface {
 	GetProposalUser(ctx context.Context, userId int64) (*pgdbModels.User, error)
 	GetRepositoryWorkspace(ctx context.Context, repository *models.Repository) (*pgdbModels.Organization, error)
-	GetPublishingTeam(ctx context.Context, repository *models.Repository) ([]models.Publisher, error)
+	GetPublishingTeamMembers(ctx context.Context, repository *models.Repository) ([]models.Publisher, error)
 	CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error)
 	GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.Organization, error)
 }
@@ -99,7 +99,7 @@ func (p *pennsieveStore) GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.O
 	return p.q.GetOrganizationBySlug(ctx, "welcome_to_pennsieve")
 }
 
-func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, repository *models.Repository) ([]models.Publisher, error) {
+func (p *pennsieveStore) GetPublishingTeamMembers(ctx context.Context, repository *models.Repository) ([]models.Publisher, error) {
 	query := "select " +
 		"  o.id as Workspace_Id, " +
 		"  o.name as Workspace_Name, " +
@@ -122,7 +122,7 @@ func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, repository *mode
 
 	rows, err := p.db.QueryContext(ctx, query, repository.OrganizationNodeId)
 	if err != nil {
-		log.WithFields(log.Fields{"QueryContext": "failed", "error": fmt.Sprintf("%+v", err)}).Error("GetPublishingTeam()")
+		log.WithFields(log.Fields{"QueryContext": "failed", "error": fmt.Sprintf("%+v", err)}).Error("GetPublishingTeamMembers()")
 		return nil, err
 	}
 
