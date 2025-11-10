@@ -493,8 +493,6 @@ func (s *publishingService) AcceptDatasetProposal(orgNodeId string, nodeId strin
 	}
 	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("service.AcceptDatasetProposal()")
 
-	// TODO: add the Workspace Publishers Team to the dataset with Manager permission
-
 	// update Dataset Proposal
 	// - set Status = “ACCEPTED”
 	// - set AcceptedAt = current time
