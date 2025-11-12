@@ -66,9 +66,9 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 	ctx := context.TODO()
 
 	// get Publishing team for the Repository
-	publishers, err := s.pennsieve.GetPublishingTeam(ctx, repository)
+	publishers, err := s.pennsieve.GetPublishingTeamMembers(ctx, repository)
 	if err != nil {
-		log.WithFields(log.Fields{"failed": "GetPublishingTeam()", "error": fmt.Sprintf("%+v", err)}).Error("service.notifyPublishingTeam()")
+		log.WithFields(log.Fields{"failed": "GetPublishingTeamMembers()", "error": fmt.Sprintf("%+v", err)}).Error("service.notifyPublishingTeam()")
 		return err
 	}
 	log.WithFields(log.Fields{"publishers": fmt.Sprintf("%+v", publishers)}).Info("service.notifyPublishingTeam()")

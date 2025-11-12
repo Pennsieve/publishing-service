@@ -3,18 +3,24 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/pennsieve/pennsieve-go-core/pkg/models/dataset/role"
 	pgdbModels "github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	pgdbQueries "github.com/pennsieve/pennsieve-go-core/pkg/queries/pgdb"
 	"github.com/pennsieve/publishing-service/api/models"
 	log "github.com/sirupsen/logrus"
+	"strings"
 )
+
+const SystemTeamTypePublishers = "publishers"
 
 type PennsievePublishingStore interface {
 	GetProposalUser(ctx context.Context, userId int64) (*pgdbModels.User, error)
 	GetRepositoryWorkspace(ctx context.Context, repository *models.Repository) (*pgdbModels.Organization, error)
-	GetPublishingTeam(ctx context.Context, repository *models.Repository) ([]models.Publisher, error)
+	GetPublishingTeam(ctx context.Context, workspaceId int64) (*models.PublishingTeam, error)
+	AddPublishingTeamToDataset(ctx context.Context, publishingTeam *models.PublishingTeam, dataset *pgdbModels.Dataset) error
+	GetPublishingTeamMembers(ctx context.Context, repository *models.Repository) ([]models.Publisher, error)
 	CreateDatasetForAcceptedProposal(ctx context.Context, proposal *models.DatasetProposal) (*CreatedDataset, error)
 	GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.Organization, error)
 }
@@ -87,6 +93,32 @@ func (p *pennsieveStore) ExecStoreTx(ctx context.Context, orgId int64, fn func(s
 	return tx.Commit()
 }
 
+func (p *pennsieveStore) ExecPennsieveStoreTx(ctx context.Context, orgId int64, fn func(store *pennsieveStore) error) error {
+	var err error
+
+	// if organization id was provided, then set search path
+	if orgId > 0 {
+		if err = setOrgSearchPath(p.db, orgId); err != nil {
+			return err
+		}
+	}
+
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	err = fn(p)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return fmt.Errorf("tx err: %v, rb err: %v", err, rbErr)
+		}
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (p *pennsieveStore) GetProposalUser(ctx context.Context, userId int64) (*pgdbModels.User, error) {
 	return p.q.GetUserById(ctx, userId)
 }
@@ -99,8 +131,62 @@ func (p *pennsieveStore) GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.O
 	return p.q.GetOrganizationBySlug(ctx, "welcome_to_pennsieve")
 }
 
-func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, repository *models.Repository) ([]models.Publisher, error) {
-	query := "select " +
+func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, workspaceId int64) (*models.PublishingTeam, error) {
+
+	queryStr := `select o.id as org_id,
+		o.name as org_name,
+		ot.team_id,
+		t.name as team_name,
+		ot.permission_bit,
+		ot.system_team_type,
+		t.node_id as team_node_id
+		from pennsieve.organizations o
+		join pennsieve.organization_team ot on ot.organization_id = o.id
+		join pennsieve.teams t on t.id = ot.team_id
+		where o.id = $1
+		and ot.system_team_type = $2`
+
+	var publishingTeam models.PublishingTeam
+	row := p.db.QueryRowContext(ctx, queryStr, workspaceId, SystemTeamTypePublishers)
+	err := row.Scan(
+		&publishingTeam.WorkspaceId,
+		&publishingTeam.WorkspaceName,
+		&publishingTeam.TeamId,
+		&publishingTeam.TeamName,
+		&publishingTeam.PermissionBit,
+		&publishingTeam.SystemTeamType,
+		&publishingTeam.TeamNodeId,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			log.Error("No rows were returned!")
+		}
+		return nil, err
+	}
+
+	return &publishingTeam, nil
+}
+
+func (p *pennsieveStore) AddPublishingTeamToDataset(ctx context.Context, publishingTeam *models.PublishingTeam, dataset *pgdbModels.Dataset) error {
+	statement := `INSERT INTO dataset_team
+					(dataset_id, team_id, permission_bit, role)
+					VALUES ($1, $2, $3, $4);`
+
+	_, err := p.db.ExecContext(
+		ctx,
+		statement,
+		dataset.Id,
+		publishingTeam.TeamId,
+		pgdbModels.Administer,
+		strings.ToLower(role.Manager.String()),
+	)
+
+	return err
+}
+
+func (p *pennsieveStore) GetPublishingTeamMembers(ctx context.Context, repository *models.Repository) ([]models.Publisher, error) {
+	queryStr := "select " +
 		"  o.id as Workspace_Id, " +
 		"  o.name as Workspace_Name, " +
 		"  t.name as team_name, " +
@@ -120,9 +206,9 @@ func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, repository *mode
 		"where o.node_id=$1 " +
 		"and ot.system_team_type='publishers';"
 
-	rows, err := p.db.QueryContext(ctx, query, repository.OrganizationNodeId)
+	rows, err := p.db.QueryContext(ctx, queryStr, repository.OrganizationNodeId)
 	if err != nil {
-		log.WithFields(log.Fields{"QueryContext": "failed", "error": fmt.Sprintf("%+v", err)}).Error("GetPublishingTeam()")
+		log.WithFields(log.Fields{"QueryContext": "failed", "error": fmt.Sprintf("%+v", err)}).Error("GetPublishingTeamMembers()")
 		return nil, err
 	}
 
@@ -278,6 +364,21 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 		return nil, fmt.Errorf(fmt.Sprintf("failed to GetDatasetUser (error: %+v)", err))
 	}
 	log.WithFields(log.Fields{"datasetUser": fmt.Sprintf("%+v", datasetUser)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
+
+	// add Publishers team to the newly created dataset
+	publishingTeam, err := p.GetPublishingTeam(ctx, organization.Id)
+	if err != nil {
+		log.WithFields(log.Fields{"failure": "GetPublishingTeam", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
+		return nil, fmt.Errorf(fmt.Sprintf("failed to GetPublishingTeam (error: %+v)", err))
+	}
+
+	err = p.ExecPennsieveStoreTx(ctx, organization.Id, func(store *pennsieveStore) error {
+		return store.AddPublishingTeamToDataset(ctx, publishingTeam, ds)
+	})
+	if err != nil {
+		log.WithFields(log.Fields{"failure": "AddPublishingTeamToDataset", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
+		return nil, fmt.Errorf(fmt.Sprintf("failed to AddPublishingTeamToDataset (error: %+v)", err))
+	}
 
 	return &CreatedDataset{
 		User:         user,
