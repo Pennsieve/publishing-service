@@ -169,13 +169,15 @@ func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, workspaceId int6
 }
 
 func (p *pennsieveStore) AddPublishingTeamToDataset(ctx context.Context, publishingTeam *models.PublishingTeam, dataset *pgdbModels.Dataset) error {
-	statement := `INSERT INTO dataset_team
+	statement := `INSERT INTO "%d".dataset_team
 					(dataset_id, team_id, permission_bit, role)
 					VALUES ($1, $2, $3, $4);`
 
+	statement2 := fmt.Sprintf(statement, publishingTeam.WorkspaceId)
+
 	_, err := p.db.ExecContext(
 		ctx,
-		statement,
+		statement2,
 		dataset.Id,
 		publishingTeam.TeamId,
 		pgdbModels.Administer,
