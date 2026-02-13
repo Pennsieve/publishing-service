@@ -1,6 +1,8 @@
 module github.com/pennsieve/publishing-service/service
 
-go 1.18
+go 1.21
+
+toolchain go1.23.6
 
 replace github.com/pennsieve/publishing-service/api => ../../api
 
@@ -11,7 +13,7 @@ require (
 )
 
 require (
-	github.com/pennsieve/pennsieve-go-core v1.7.4
+	github.com/pennsieve/pennsieve-go-core v1.13.7
 	github.com/valyala/fastjson v1.6.4
 )
 
@@ -40,8 +42,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.4 // indirect
 	github.com/aws/smithy-go v1.13.5 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/lib/pq v1.10.7 // indirect
-	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
 )
