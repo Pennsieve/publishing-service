@@ -4,16 +4,6 @@ go 1.23.0
 
 toolchain go1.23.9
 
-// BLOCKED on email-service tagging the client module. Once
-// github.com/pennsieve/email-service/client is published (its module is rooted
-// at github.com/pennsieve/email-service), add it here and run `go mod tidy`:
-//
-//	require github.com/pennsieve/email-service <version>
-//	require github.com/aws/aws-sdk-go-v2/service/sqs <version>
-//
-// tidy will also bump aws-sdk-go-v2 (currently v1.18.0) to the client's v1.26+.
-// Until then api/notification/queue.go will not compile — see that file's note.
-
 require (
 	github.com/aws/aws-sdk-go-v2 v1.26.1
 	github.com/aws/aws-sdk-go-v2/config v1.26.6

@@ -1,8 +1,3 @@
-// BLOCKED: this file depends on github.com/pennsieve/email-service/client, which
-// is not yet tagged/published (see ../go.mod). It will not compile until that
-// module is available and added to go.mod. The logic and call-site swap are
-// complete and ready for review; only the dependency wiring is pending.
-
 package notification
 
 import (
