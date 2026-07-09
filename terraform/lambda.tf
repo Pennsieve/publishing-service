@@ -29,6 +29,8 @@ resource "aws_lambda_function" "service_lambda" {
       EMAIL_TEMPLATE_WITHDRAWN = "PublishingService/EmailTemplates/dataset-proposal-withdrawn.html"
       EMAIL_TEMPLATE_ACCEPTED = "PublishingService/EmailTemplates/dataset-proposal-accepted.html"
       EMAIL_TEMPLATE_REJECTED = "PublishingService/EmailTemplates/dataset-proposal-rejected.html"
+      # email-service send queue — QueueNotifier enqueues here instead of SES.
+      EMAIL_SERVICE_QUEUE_URL = data.terraform_remote_state.email_service.outputs.email_service_queue_url
     }
   }
 }
