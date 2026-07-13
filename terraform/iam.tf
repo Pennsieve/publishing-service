@@ -118,4 +118,26 @@ data "aws_iam_policy_document" "publishing_service_iam_policy_document" {
     resources = ["*"]
   }
 
+  # Enqueue email requests on the email-service send queue (QueueNotifier).
+  statement {
+    sid    = "PublishingServiceEmailServiceSQSPermissions"
+    effect = "Allow"
+    actions = [
+      "sqs:SendMessage",
+      "sqs:GetQueueAttributes",
+    ]
+    resources = [data.terraform_remote_state.email_service.outputs.email_service_queue_arn]
+  }
+
+  # The send queue is KMS-encrypted; sending requires use of its key.
+  statement {
+    sid    = "PublishingServiceEmailServiceKMSPermissions"
+    effect = "Allow"
+    actions = [
+      "kms:GenerateDataKey",
+      "kms:Decrypt",
+    ]
+    resources = [data.terraform_remote_state.email_service.outputs.email_service_queue_kms_key_arn]
+  }
+
 }

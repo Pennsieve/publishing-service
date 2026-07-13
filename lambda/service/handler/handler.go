@@ -71,7 +71,13 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 
 		pubStore := store.NewPublishingStore()
 		pennsieve := store.NewPennsieveStore(db, orgId)
-		notifier := notification.NewEmailNotifier(context.TODO())
+		// Emails are sent via the Pennsieve email-service (enqueue -> consumer
+		// renders + delivers), replacing the previous direct-SES EmailNotifier.
+		notifier, err := notification.NewQueueNotifier(context.TODO())
+		if err != nil {
+			log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("failed to create email notifier")
+			return &events.APIGatewayV2HTTPResponse{StatusCode: 500}, nil
+		}
 		serviceImpl = service.NewPublishingService(pubStore, pennsieve, notifier)
 	}
 
