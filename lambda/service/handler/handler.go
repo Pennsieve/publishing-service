@@ -4,44 +4,34 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"log/slog"
+	"regexp"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/pennsieve/pennsieve-go-core/pkg/authorizer"
 	"github.com/pennsieve/pennsieve-go-core/pkg/queries/pgdb"
 	"github.com/pennsieve/publishing-service/api/dtos"
+	"github.com/pennsieve/publishing-service/api/logging"
 	"github.com/pennsieve/publishing-service/api/notification"
 	"github.com/pennsieve/publishing-service/api/service"
 	"github.com/pennsieve/publishing-service/api/store"
-	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fastjson"
-	"os"
-	"regexp"
 )
 
 func init() {
-	log.SetFormatter(&log.JSONFormatter{})
-	ll, err := log.ParseLevel(os.Getenv("LOG_LEVEL"))
-	if err != nil {
-		log.SetLevel(log.DebugLevel)
-	} else {
-		log.SetLevel(ll)
-	}
+	logging.SetDefaultFromEnv()
 }
 
 func PublishingServiceHandler(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
-	var err error
-	var response *events.APIGatewayV2HTTPResponse
+	// The request-scoped logger is built exactly once, here, and threaded
+	// through every layer below. Nothing downstream reconstructs it or falls
+	// back to slog.Default.
+	logger := newRequestLogger(request)
 
-	log.Println("PublishingServiceHandler() ")
-
-	response, err = handleRequest(request)
-
-	return response, err
+	return handleRequest(logger, request)
 }
 
-func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
-	log.Info("handleRequest()")
-
+func handleRequest(logger *slog.Logger, request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
 	var err error
 	var statusCode int
 	var jsonBody []byte
@@ -51,106 +41,114 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 	routeKey := routeKeyParts[r.SubexpIndex("pathKey")]
 	httpMethod := request.RequestContext.HTTP.Method
 
+	logger = logger.With(
+		slog.String(logging.KeyMethod, httpMethod),
+		slog.String(logging.KeyRoute, routeKey),
+	)
+	logger.Info("handling request")
+
 	var serviceImpl service.PublishingService
 	var claims *authorizer.Claims
 	switch routeKey {
 	case "/repositories":
-		pubStore := store.NewPublishingStore()
-		serviceImpl = service.NewPublishingService(pubStore, nil, nil)
+		pubStore := store.NewPublishingStore(logger)
+		serviceImpl = service.NewPublishingService(logger, pubStore, nil, nil)
 
 	default:
 		claims = authorizer.ParseClaims(request.RequestContext.Authorizer.Lambda)
 		orgId := claims.OrgClaim.IntId
+		logger = logger.With(
+			slog.Int64(logging.KeyOrgID, orgId),
+			slog.Int64(logging.KeyUserID, claims.UserClaim.Id),
+		)
 
 		db, err := pgdb.ConnectRDSWithOrg(int(orgId))
 		if err != nil {
-			log.WithFields(log.Fields{"orgId": orgId, "error": fmt.Sprintf("%+v", err)}).Error("unable to connect to RDS database")
+			logger.Error("unable to connect to RDS database", slog.Any(logging.KeyError, err))
 			return &events.APIGatewayV2HTTPResponse{StatusCode: 500}, nil
 		}
-		log.WithFields(log.Fields{"orgId": orgId, "resource": "database", "action": "connect"}).Info("connected to RDS database")
+		logger.Info("connected to RDS database")
 		defer db.Close()
 
-		pubStore := store.NewPublishingStore()
-		pennsieve, err := store.NewPennsieveStore(db, orgId)
+		pubStore := store.NewPublishingStore(logger)
+		pennsieve, err := store.NewPennsieveStore(logger, db, orgId)
 		if err != nil {
-			log.WithFields(log.Fields{"orgId": orgId, "error": fmt.Sprintf("%+v", err)}).Error("failed to create pennsieve store")
+			logger.Error("failed to create pennsieve store", slog.Any(logging.KeyError, err))
 			return &events.APIGatewayV2HTTPResponse{StatusCode: 500}, nil
 		}
 		// Emails are sent via the Pennsieve email-service (enqueue -> consumer
 		// renders + delivers), replacing the previous direct-SES EmailNotifier.
-		notifier, err := notification.NewQueueNotifier(context.TODO())
+		notifier, err := notification.NewQueueNotifier(context.TODO(), logger)
 		if err != nil {
-			log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("failed to create email notifier")
+			logger.Error("failed to create email notifier", slog.Any(logging.KeyError, err))
 			return &events.APIGatewayV2HTTPResponse{StatusCode: 500}, nil
 		}
-		serviceImpl = service.NewPublishingService(pubStore, pennsieve, notifier)
+		serviceImpl = service.NewPublishingService(logger, pubStore, pennsieve, notifier)
 	}
-
-	log.WithFields(log.Fields{"method": httpMethod, "route": routeKey}).Info("handleRequest()")
 
 	switch routeKey {
 	case "/info":
 		switch httpMethod {
 		case "GET":
-			jsonBody, statusCode = handleGetPublishingInfo(serviceImpl)
+			jsonBody, statusCode = handleGetPublishingInfo(logger, serviceImpl)
 		}
 	case "/repositories":
 		switch httpMethod {
 		case "GET":
-			jsonBody, statusCode = handleGetPublishingRepositories(serviceImpl)
+			jsonBody, statusCode = handleGetPublishingRepositories(logger, serviceImpl)
 		}
 	case "/questions":
 		switch httpMethod {
 		case "GET":
-			jsonBody, statusCode = handleGetProposalQuestions(serviceImpl)
+			jsonBody, statusCode = handleGetProposalQuestions(logger, serviceImpl)
 		}
 	case "/proposal":
 		switch httpMethod {
 		case "GET":
 			if ok := authorizedAuthor(claims); ok {
-				jsonBody, statusCode = handleGetUserDatasetProposals(claims, serviceImpl)
+				jsonBody, statusCode = handleGetUserDatasetProposals(logger, claims, serviceImpl)
 			} else {
 				jsonBody = nil
 				statusCode = 401
 			}
 		case "POST":
-			jsonBody, statusCode = handleCreateDatasetProposal(request, claims, serviceImpl)
+			jsonBody, statusCode = handleCreateDatasetProposal(logger, request, claims, serviceImpl)
 		case "PUT":
-			jsonBody, statusCode = handleUpdateDatasetProposal(request, claims, serviceImpl)
+			jsonBody, statusCode = handleUpdateDatasetProposal(logger, request, claims, serviceImpl)
 		case "DELETE":
-			jsonBody, statusCode = handleDeleteDatasetProposal(request, claims, serviceImpl)
+			jsonBody, statusCode = handleDeleteDatasetProposal(logger, request, claims, serviceImpl)
 		}
 	case "/proposal/submit":
 		switch httpMethod {
 		case "POST":
-			jsonBody, statusCode = handleSubmitDatasetProposal(request, claims, serviceImpl)
+			jsonBody, statusCode = handleSubmitDatasetProposal(logger, request, claims, serviceImpl)
 		}
 	case "/proposal/withdraw":
 		switch httpMethod {
 		case "POST":
-			jsonBody, statusCode = handleWithdrawDatasetProposal(request, claims, serviceImpl)
+			jsonBody, statusCode = handleWithdrawDatasetProposal(logger, request, claims, serviceImpl)
 		}
 	case "/submission":
 		switch httpMethod {
 		case "GET":
-			jsonBody, statusCode = handleGetWorkspaceDatasetProposals(authorizedPublisher, claims, serviceImpl, request)
+			jsonBody, statusCode = handleGetWorkspaceDatasetProposals(logger, authorizedPublisher, claims, serviceImpl, request)
 		}
 	case "/submission/accept":
 		switch httpMethod {
 		case "POST":
-			jsonBody, statusCode = handleAcceptDatasetProposal(authorizedPublisher, claims, serviceImpl, request)
+			jsonBody, statusCode = handleAcceptDatasetProposal(logger, authorizedPublisher, claims, serviceImpl, request)
 		}
 	case "/submission/reject":
 		switch httpMethod {
 		case "POST":
-			jsonBody, statusCode = handleRejectDatasetProposal(authorizedPublisher, claims, serviceImpl, request)
+			jsonBody, statusCode = handleRejectDatasetProposal(logger, authorizedPublisher, claims, serviceImpl, request)
 		}
 	default:
 		err = errors.New("unknown route")
+		logger.Error("unknown route")
 	}
 
 	jsonString := string(jsonBody)
-	log.Println("handleRequest() jsonString: ", jsonString)
 
 	response := events.APIGatewayV2HTTPResponse{
 		Body:       jsonString,
@@ -159,7 +157,10 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 			"content-type": "application/json",
 		},
 	}
-	log.Println("handleRequest() response: ", response)
+	logger.Info("request handled", slog.Int(logging.KeyStatus, statusCode))
+	// Full response bodies are only ever emitted at DEBUG: this service carries
+	// dataset-proposal content, so bodies must not land in logs by default.
+	logger.Debug("response body", slog.String("body", jsonString))
 
 	return &response, err
 }
@@ -174,78 +175,82 @@ func authorizedPublisher(claims *authorizer.Claims) bool {
 	return authorizer.IsPublisher(claims)
 }
 
-func handleGetPublishingInfo(service service.PublishingService) ([]byte, int) {
+func handleGetPublishingInfo(logger *slog.Logger, service service.PublishingService) ([]byte, int) {
 	result, err := service.GetPublishingInfo()
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
+		logger.Error("service.GetPublishingInfo() failed", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	jsonBody, err := json.Marshal(result)
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
+		logger.Error("json.Marshal() failed marshalling publishing info", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	return jsonBody, 200
 }
 
-func handleGetPublishingRepositories(service service.PublishingService) ([]byte, int) {
+func handleGetPublishingRepositories(logger *slog.Logger, service service.PublishingService) ([]byte, int) {
 	result, err := service.GetPublishingRepositories()
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
+		logger.Error("service.GetPublishingRepositories() failed", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	jsonBody, err := json.Marshal(result)
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
+		logger.Error("json.Marshal() failed marshalling repositories", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	return jsonBody, 200
 }
 
-func handleGetProposalQuestions(service service.PublishingService) ([]byte, int) {
+func handleGetProposalQuestions(logger *slog.Logger, service service.PublishingService) ([]byte, int) {
 	result, err := service.GetProposalQuestions()
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
+		logger.Error("service.GetProposalQuestions() failed", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	jsonBody, err := json.Marshal(result)
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
+		logger.Error("json.Marshal() failed marshalling questions", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	return jsonBody, 200
 }
 
-func handleGetUserDatasetProposals(claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
-	log.Info("handleGetUserDatasetProposals()")
+func handleGetUserDatasetProposals(logger *slog.Logger, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
 	// get user id from User Claim
 	userId := claims.UserClaim.Id
-	log.WithFields(log.Fields{"userId": userId}).Debug("handleGetUserDatasetProposals()")
 
 	result, err := service.GetDatasetProposalsForUser(userId)
 	if err != nil {
-		log.Error("service.GetDatasetProposalsForUser() failed: ", err)
+		logger.Error("service.GetDatasetProposalsForUser() failed", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	jsonBody, err := json.Marshal(result)
 	if err != nil {
-		log.Error("json.Marshal() failed: ", err)
+		logger.Error("json.Marshal() failed marshalling user proposals", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	return jsonBody, 200
 }
 
-func handleGetWorkspaceDatasetProposals(authorized Authorizer, claims *authorizer.Claims, service service.PublishingService, request events.APIGatewayV2HTTPRequest) ([]byte, int) {
-	log.WithFields(log.Fields{}).Info("handleGetWorkspaceDatasetProposals")
+func handleGetWorkspaceDatasetProposals(logger *slog.Logger, authorized Authorizer, claims *authorizer.Claims, service service.PublishingService, request events.APIGatewayV2HTTPRequest) ([]byte, int) {
 	if !authorized(claims) {
+		logger.Warn("caller is not authorized to list workspace proposals")
 		return nil, 401
 	}
 
@@ -265,6 +270,10 @@ func handleGetWorkspaceDatasetProposals(authorized Authorizer, claims *authorize
 	result, err := service.GetDatasetProposalsForWorkspace(orgNodeId, status)
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
+		logger.Error("service.GetDatasetProposalsForWorkspace() failed",
+			slog.String(logging.KeyOrgNodeID, orgNodeId),
+			slog.String(logging.KeyProposalStatus, status),
+			slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
@@ -276,36 +285,38 @@ func handleGetWorkspaceDatasetProposals(authorized Authorizer, claims *authorize
 	jsonBody, err := json.Marshal(response)
 	if err != nil {
 		// TODO: provide a better response than nil on a 500
+		logger.Error("json.Marshal() failed marshalling workspace proposals", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	return jsonBody, 200
 }
 
-func handleCreateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
-	log.Println("handleCreateDatasetProposal()")
+func handleCreateDatasetProposal(logger *slog.Logger, request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
 	err := fastjson.Validate(request.Body)
 	if err != nil {
-		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("request body validation failed")
+		logger.Error("request body validation failed", slog.Any(logging.KeyError, err))
 		return nil, 400
 	}
 
 	// Unmarshal JSON into Dataset Proposal DTO
 	bytes := []byte(request.Body)
 	var requestDTO dtos.DatasetProposalDTO
-	json.Unmarshal(bytes, &requestDTO)
-	log.WithFields(log.Fields{"requestDTO": fmt.Sprintf("%+v", requestDTO)}).Debug("handleCreateDatasetProposal()")
+	if err := json.Unmarshal(bytes, &requestDTO); err != nil {
+		logger.Error("json.Unmarshal() failed unmarshalling proposal", slog.Any(logging.KeyError, err))
+		return nil, 400
+	}
 
 	resultDTO, err := service.CreateDatasetProposal(claims.UserClaim.Id, requestDTO)
 	if err != nil {
-		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.CreateDatasetProposal() failed")
+		logger.Error("service.CreateDatasetProposal() failed", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
-	log.WithFields(log.Fields{"resultDTO": fmt.Sprintf("%+v", resultDTO)}).Debug("handleCreateDatasetProposal()")
+	logger.Info("created dataset proposal", slog.String(logging.KeyNodeID, resultDTO.NodeId))
 
 	jsonBody, err := json.Marshal(resultDTO)
 	if err != nil {
-		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("json.Marshal() failed")
+		logger.Error("json.Marshal() failed marshalling created proposal", slog.Any(logging.KeyError, err))
 		// TODO: provide a better response than nil on a 500
 		return nil, 500
 	}
@@ -313,57 +324,60 @@ func handleCreateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	return jsonBody, 201
 }
 
-func handleUpdateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
-	log.WithFields(log.Fields{"request.body": request.Body}).Debug("handleUpdateDatasetProposal()")
-
+func handleUpdateDatasetProposal(logger *slog.Logger, request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
 	var err error
 
 	// validate JSON
 	err = fastjson.Validate(request.Body)
 	if err != nil {
-		log.WithFields(log.Fields{"request.Body": request.Body}).Error("request body validation failed: ", err)
+		logger.Error("request body validation failed", slog.Any(logging.KeyError, err))
 		return nil, 400
 	}
 
 	// Unmarshal JSON into Dataset Proposal DTO
 	bytes := []byte(request.Body)
 	var requestDTO dtos.DatasetProposalDTO
-	json.Unmarshal(bytes, &requestDTO)
-	log.WithFields(log.Fields{"requestDTO": fmt.Sprintf("%+v", requestDTO)}).Debug("handleUpdateDatasetProposal()")
+	if err := json.Unmarshal(bytes, &requestDTO); err != nil {
+		logger.Error("json.Unmarshal() failed unmarshalling proposal", slog.Any(logging.KeyError, err))
+		return nil, 400
+	}
 
 	// check that ProposalNodeId was provided
 	if requestDTO.NodeId == "" {
-		log.WithFields(log.Fields{}).Error("missing required field(s): ProposalNodeId")
+		logger.Error("missing required field(s): ProposalNodeId")
 		return nil, 400
 	}
 
 	// get Proposal by UserId and ProposalNodeId
 	proposal, err := service.GetDatasetProposal(requestDTO.UserId, requestDTO.NodeId)
 	if err != nil {
-		log.WithFields(log.Fields{"UserId": requestDTO.UserId, "NodeId": requestDTO.NodeId}).Error("Dataset Proposal does not exist")
+		logger.Error("dataset proposal does not exist",
+			slog.Int(logging.KeyUserID, requestDTO.UserId),
+			slog.String(logging.KeyNodeID, requestDTO.NodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, 404
 	}
 
 	// if it exists, then invoke update
 	resultDTO, err := service.UpdateDatasetProposal(claims.UserClaim.Id, proposal, requestDTO)
 	if err != nil {
-		log.Error("service.UpdateDatasetProposal() failed: ", err)
+		logger.Error("service.UpdateDatasetProposal() failed",
+			slog.String(logging.KeyNodeID, requestDTO.NodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
-	log.WithFields(log.Fields{"resultDTO": fmt.Sprintf("%+v", resultDTO)}).Debug("handleCreateDatasetProposal()")
+	logger.Info("updated dataset proposal", slog.String(logging.KeyNodeID, resultDTO.NodeId))
 
 	jsonBody, err := json.Marshal(resultDTO)
 	if err != nil {
-		log.Error("json.Marshal() failed: ", err)
+		logger.Error("json.Marshal() failed marshalling updated proposal", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	return jsonBody, 200
 }
 
-func handleDeleteDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
-	log.WithFields(log.Fields{}).Debug("handleDeleteDatasetProposal()")
-
+func handleDeleteDatasetProposal(logger *slog.Logger, request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
 	var err error
 	var nodeId string
 	var found bool
@@ -371,6 +385,7 @@ func handleDeleteDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	// get ProposalNodeId from request query parameters
 	queryParams := request.QueryStringParameters
 	if nodeId, found = queryParams["proposal_node_id"]; !found {
+		logger.Error("missing required query parameter: proposal_node_id")
 		return nil, 400
 	}
 
@@ -379,22 +394,25 @@ func handleDeleteDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	proposal, err := service.GetDatasetProposal(userId, nodeId)
 	if err != nil {
 		// probably not found
+		logger.Error("dataset proposal not found",
+			slog.String(logging.KeyNodeID, nodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, 404
 	}
-	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("handleDeleteDatasetProposal() found proposal")
 
 	_, err = service.DeleteDatasetProposal(proposal)
 	if err != nil {
-		// TODO: log an error message
+		logger.Error("service.DeleteDatasetProposal() failed",
+			slog.String(logging.KeyNodeID, nodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
+	logger.Info("deleted dataset proposal", slog.String(logging.KeyNodeID, nodeId))
 
 	return nil, 200
 }
 
-func handleSubmitDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
-	log.WithFields(log.Fields{}).Debug("handleSubmitDatasetProposal()")
-
+func handleSubmitDatasetProposal(logger *slog.Logger, request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
 	var err error
 	var nodeId string
 	var found bool
@@ -402,6 +420,7 @@ func handleSubmitDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	// get ProposalNodeId from request query parameters
 	queryParams := request.QueryStringParameters
 	if nodeId, found = queryParams["node_id"]; !found {
+		logger.Error("missing required query parameter: node_id")
 		return nil, 400
 	}
 
@@ -409,22 +428,23 @@ func handleSubmitDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 
 	proposalDTO, err := service.SubmitDatasetProposal(userId, nodeId)
 	if err != nil {
+		logger.Error("service.SubmitDatasetProposal() failed",
+			slog.String(logging.KeyNodeID, nodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, 400
 	}
-	log.WithFields(log.Fields{"proposalDTO": fmt.Sprintf("%+v", proposalDTO)}).Debug("handleSubmitDatasetProposal() submitted proposal")
+	logger.Info("submitted dataset proposal", slog.String(logging.KeyNodeID, nodeId))
 
 	jsonBody, err := json.Marshal(proposalDTO)
 	if err != nil {
-		log.Error("json.Marshal() failed: ", err)
+		logger.Error("json.Marshal() failed marshalling submitted proposal", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	return jsonBody, 200
 }
 
-func handleWithdrawDatasetProposal(request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
-	log.WithFields(log.Fields{}).Debug("handleWithdrawDatasetProposal()")
-
+func handleWithdrawDatasetProposal(logger *slog.Logger, request events.APIGatewayV2HTTPRequest, claims *authorizer.Claims, service service.PublishingService) ([]byte, int) {
 	var err error
 	var nodeId string
 	var found bool
@@ -432,6 +452,7 @@ func handleWithdrawDatasetProposal(request events.APIGatewayV2HTTPRequest, claim
 	// get ProposalNodeId from request query parameters
 	queryParams := request.QueryStringParameters
 	if nodeId, found = queryParams["node_id"]; !found {
+		logger.Error("missing required query parameter: node_id")
 		return nil, 400
 	}
 
@@ -439,13 +460,16 @@ func handleWithdrawDatasetProposal(request events.APIGatewayV2HTTPRequest, claim
 
 	proposalDTO, err := service.WithdrawDatasetProposal(userId, nodeId)
 	if err != nil {
+		logger.Error("service.WithdrawDatasetProposal() failed",
+			slog.String(logging.KeyNodeID, nodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, 400
 	}
-	log.WithFields(log.Fields{"proposalDTO": fmt.Sprintf("%+v", proposalDTO)}).Debug("handleWithdrawDatasetProposal() withdrew proposal")
+	logger.Info("withdrew dataset proposal", slog.String(logging.KeyNodeID, nodeId))
 
 	jsonBody, err := json.Marshal(proposalDTO)
 	if err != nil {
-		log.Error("json.Marshal() failed: ", err)
+		logger.Error("json.Marshal() failed marshalling withdrawn proposal", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
@@ -453,9 +477,9 @@ func handleWithdrawDatasetProposal(request events.APIGatewayV2HTTPRequest, claim
 
 }
 
-func handleAcceptDatasetProposal(authorized Authorizer, claims *authorizer.Claims, service service.PublishingService, request events.APIGatewayV2HTTPRequest) ([]byte, int) {
-	log.WithFields(log.Fields{}).Info("handleAcceptDatasetProposal")
+func handleAcceptDatasetProposal(logger *slog.Logger, authorized Authorizer, claims *authorizer.Claims, service service.PublishingService, request events.APIGatewayV2HTTPRequest) ([]byte, int) {
 	if !authorized(claims) {
+		logger.Warn("caller is not authorized to accept proposals")
 		return nil, 401
 	}
 
@@ -466,31 +490,36 @@ func handleAcceptDatasetProposal(authorized Authorizer, claims *authorizer.Claim
 	// get ProposalNodeId from request query parameters
 	queryParams := request.QueryStringParameters
 	if nodeId, found = queryParams["node_id"]; !found {
+		logger.Error("missing required query parameter: node_id")
 		return nil, 400
 	}
 
 	orgNodeId := claims.OrgClaim.NodeId
-	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "nodeId": nodeId}).Debug("handleAcceptDatasetProposal()")
 
 	proposalDTO, err := service.AcceptDatasetProposal(orgNodeId, nodeId)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "AcceptDatasetProposal", "err": fmt.Sprintf("%+v", err)}).Error("handleAcceptDatasetProposal()")
+		logger.Error("service.AcceptDatasetProposal() failed",
+			slog.String(logging.KeyOrgNodeID, orgNodeId),
+			slog.String(logging.KeyNodeID, nodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, 400
 	}
-	log.WithFields(log.Fields{"proposalDTO": fmt.Sprintf("%+v", proposalDTO)}).Debug("handleAcceptDatasetProposal() accepted proposal")
+	logger.Info("accepted dataset proposal",
+		slog.String(logging.KeyOrgNodeID, orgNodeId),
+		slog.String(logging.KeyNodeID, nodeId))
 
 	jsonBody, err := json.Marshal(proposalDTO)
 	if err != nil {
-		log.Error("json.Marshal() failed: ", err)
+		logger.Error("json.Marshal() failed marshalling accepted proposal", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 
 	return jsonBody, 200
 }
 
-func handleRejectDatasetProposal(authorized Authorizer, claims *authorizer.Claims, service service.PublishingService, request events.APIGatewayV2HTTPRequest) ([]byte, int) {
-	log.WithFields(log.Fields{}).Info("handleRejectDatasetProposal")
+func handleRejectDatasetProposal(logger *slog.Logger, authorized Authorizer, claims *authorizer.Claims, service service.PublishingService, request events.APIGatewayV2HTTPRequest) ([]byte, int) {
 	if !authorized(claims) {
+		logger.Warn("caller is not authorized to reject proposals")
 		return nil, 401
 	}
 
@@ -501,21 +530,27 @@ func handleRejectDatasetProposal(authorized Authorizer, claims *authorizer.Claim
 	// get ProposalNodeId from request query parameters
 	queryParams := request.QueryStringParameters
 	if nodeId, found = queryParams["node_id"]; !found {
+		logger.Error("missing required query parameter: node_id")
 		return nil, 400
 	}
 
 	orgNodeId := claims.OrgClaim.NodeId
-	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "nodeId": nodeId}).Debug("handleRejectDatasetProposal()")
 
 	proposalDTO, err := service.RejectDatasetProposal(orgNodeId, nodeId)
 	if err != nil {
+		logger.Error("service.RejectDatasetProposal() failed",
+			slog.String(logging.KeyOrgNodeID, orgNodeId),
+			slog.String(logging.KeyNodeID, nodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, 400
 	}
-	log.WithFields(log.Fields{"proposalDTO": fmt.Sprintf("%+v", proposalDTO)}).Debug("handleRejectDatasetProposal() rejected proposal")
+	logger.Info("rejected dataset proposal",
+		slog.String(logging.KeyOrgNodeID, orgNodeId),
+		slog.String(logging.KeyNodeID, nodeId))
 
 	jsonBody, err := json.Marshal(proposalDTO)
 	if err != nil {
-		log.Error("json.Marshal() failed: ", err)
+		logger.Error("json.Marshal() failed marshalling rejected proposal", slog.Any(logging.KeyError, err))
 		return nil, 500
 	}
 

@@ -11,6 +11,23 @@ const (
 	Rejected
 )
 
+// String renders the notification kind for logs, so log lines carry
+// "submitted" rather than the bare enum ordinal.
+func (n Notification) String() string {
+	switch n {
+	case Submitted:
+		return "submitted"
+	case Withdrawn:
+		return "withdrawn"
+	case Accepted:
+		return "accepted"
+	case Rejected:
+		return "rejected"
+	default:
+		return "unknown"
+	}
+}
+
 type MessageAttributes map[string]string
 
 func (ma MessageAttributes) String() string {

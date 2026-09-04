@@ -3,14 +3,16 @@ package store
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/pennsieve/publishing-service/api/logging"
 	"github.com/pennsieve/publishing-service/api/models"
-	log "github.com/sirupsen/logrus"
-	"os"
 )
 
 type PublishingStore interface {
@@ -32,16 +34,20 @@ func getTableName(tableName string) string {
 	return table
 }
 
-func NewPublishingStore() *publishingStore {
+// NewPublishingStore builds the DynamoDB-backed store for one request. logger
+// is the request-scoped logger built at the entrypoint, held on the struct so
+// no method has to reach for slog.Default.
+func NewPublishingStore(logger *slog.Logger) *publishingStore {
 	// TODO: handle and/or propagate errors
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
-		// TODO: handle error
+		logger.Error("config.LoadDefaultConfig() failed building publishing store", slog.Any(logging.KeyError, err))
 	}
 
 	db := dynamodb.NewFromConfig(cfg)
 
 	return &publishingStore{
+		logger:                logger,
 		db:                    db,
 		infoTable:             getTableName("PUBLISHING_INFO_TABLE"),
 		repositoriesTable:     getTableName("REPOSITORIES_TABLE"),
@@ -51,6 +57,7 @@ func NewPublishingStore() *publishingStore {
 }
 
 type publishingStore struct {
+	logger                *slog.Logger
 	db                    *dynamodb.Client
 	infoTable             string
 	repositoriesTable     string
@@ -66,28 +73,29 @@ func int64ToString(i int64) string {
 	return fmt.Sprintf("%d", i)
 }
 
-func scan(client *dynamodb.Client, tableName string) (*dynamodb.ScanOutput, error) {
-	log.WithFields(log.Fields{"tableName": tableName}).Debug("scan()")
-
+func scan(logger *slog.Logger, client *dynamodb.Client, tableName string) (*dynamodb.ScanOutput, error) {
 	scanInput := dynamodb.ScanInput{
 		TableName: aws.String(tableName),
 	}
-	log.WithFields(log.Fields{"scanInput": fmt.Sprintf("%+v", scanInput)}).Debug("scan()")
 
 	result, err := client.Scan(context.TODO(), &scanInput)
 	if err != nil {
-		log.Error("scan() err: ", err)
+		logger.Error("dynamodb Scan() failed",
+			slog.String(logging.KeyTable, tableName),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
 	return result, nil
 }
 
-func query(client *dynamodb.Client, queryInput *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
-	log.WithFields(log.Fields{"queryInput": fmt.Sprintf("%#v", queryInput)}).Debug("query()")
+func query(logger *slog.Logger, client *dynamodb.Client, queryInput *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
 	result, err := client.Query(context.TODO(), queryInput)
 	if err != nil {
-		log.Error("query() err: ", err)
+		logger.Error("dynamodb Query() failed",
+			slog.String(logging.KeyTable, aws.ToString(queryInput.TableName)),
+			slog.String(logging.KeyIndex, aws.ToString(queryInput.IndexName)),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
@@ -112,52 +120,50 @@ func transform[T PublishingTypes](items []map[string]types.AttributeValue) ([]T,
 	return results, nil
 }
 
-func fetch[T PublishingTypes](client *dynamodb.Client, tableName string) ([]T, error) {
-	log.WithFields(log.Fields{"tableName": tableName}).Debug("fetch()")
+func fetch[T PublishingTypes](logger *slog.Logger, client *dynamodb.Client, tableName string) ([]T, error) {
 	var err error
 
 	// get all Items from the table via Scan operation
-	output, err := scan(client, tableName)
+	output, err := scan(logger, client, tableName)
 	if err != nil {
-		log.Error("fetch() - scan() err: ", err)
 		return nil, err
 	}
 
 	// transform each Item in output from DynamoDB to type T
 	results, err := transform[T](output.Items)
 	if err != nil {
-		log.Error("fetch() - transform() err: ", err)
+		logger.Error("failed to unmarshal scanned dynamodb items",
+			slog.String(logging.KeyTable, tableName),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
 	return results, nil
 }
 
-func find[T PublishingTypes](client *dynamodb.Client, queryInput *dynamodb.QueryInput) ([]T, error) {
-	log.WithFields(log.Fields{"queryInput": fmt.Sprintf("%#v", queryInput)}).Debug("find()")
+func find[T PublishingTypes](logger *slog.Logger, client *dynamodb.Client, queryInput *dynamodb.QueryInput) ([]T, error) {
 	var err error
 
-	output, err := query(client, queryInput)
+	output, err := query(logger, client, queryInput)
 	if err != nil {
-		log.Error("find() - query() err: ", err)
 		return nil, err
 	}
 
 	// transform each Item in output from DynamoDB to type T
 	results, err := transform[T](output.Items)
 	if err != nil {
-		log.Error("find() - transform() err: ", err)
+		logger.Error("failed to unmarshal queried dynamodb items",
+			slog.String(logging.KeyTable, aws.ToString(queryInput.TableName)),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
 	return results, nil
 }
 
-func get[T PublishingTypes](client *dynamodb.Client, queryInput *dynamodb.QueryInput) (*T, error) {
-	log.WithFields(log.Fields{"queryInput": fmt.Sprintf("%#v", queryInput)}).Debug("get()")
-	results, err := find[T](client, queryInput)
+func get[T PublishingTypes](logger *slog.Logger, client *dynamodb.Client, queryInput *dynamodb.QueryInput) (*T, error) {
+	results, err := find[T](logger, client, queryInput)
 	if err != nil {
-		log.Error("get() - find() err: ", err)
 		return nil, err
 	}
 
@@ -173,16 +179,16 @@ func get[T PublishingTypes](client *dynamodb.Client, queryInput *dynamodb.QueryI
 }
 
 // TODO: make this function a generic ~> item T[]
-func store(client *dynamodb.Client, table string, item *models.DatasetProposal) (*dynamodb.PutItemOutput, error) {
-	log.WithFields(log.Fields{"table": table, "item": fmt.Sprintf("%#v", item)}).Debug("store()")
-
+func store(logger *slog.Logger, client *dynamodb.Client, table string, item *models.DatasetProposal) (*dynamodb.PutItemOutput, error) {
 	var err error
 	data, err := attributevalue.MarshalMap(item)
 	if err != nil {
-		log.WithFields(log.Fields{"table": table, "error": fmt.Sprintf("%+v", err)}).Error("attributevalue.MarshalMap() failed")
+		logger.Error("attributevalue.MarshalMap() failed marshalling proposal",
+			slog.String(logging.KeyTable, table),
+			slog.String(logging.KeyNodeID, item.NodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
-	log.WithFields(log.Fields{"data": fmt.Sprintf("%+v", data)}).Debug("store.CreateDatasetProposal()")
 
 	return client.PutItem(context.TODO(), &dynamodb.PutItemInput{
 		TableName: aws.String(table),
@@ -191,17 +197,14 @@ func store(client *dynamodb.Client, table string, item *models.DatasetProposal) 
 }
 
 func (s *publishingStore) GetInfo() ([]models.Info, error) {
-	log.Info("store.GetInfo()")
-	return fetch[models.Info](s.db, s.infoTable)
+	return fetch[models.Info](s.logger, s.db, s.infoTable)
 }
 
 func (s *publishingStore) GetRepositories() ([]models.Repository, error) {
-	log.Info("store.GetRepositories()")
-	return fetch[models.Repository](s.db, s.repositoriesTable)
+	return fetch[models.Repository](s.logger, s.db, s.repositoriesTable)
 }
 
 func (s *publishingStore) GetRepository(organizationNodeId string) (*models.Repository, error) {
-	log.WithFields(log.Fields{"organizationNodeId": organizationNodeId}).Info("GetRepository()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.repositoriesTable),
 		KeyConditionExpression: aws.String("OrganizationNodeId = :organizationNodeId"),
@@ -211,16 +214,14 @@ func (s *publishingStore) GetRepository(organizationNodeId string) (*models.Repo
 			},
 		},
 	}
-	return get[models.Repository](s.db, &queryInput)
+	return get[models.Repository](s.logger, s.db, &queryInput)
 }
 
 func (s *publishingStore) GetQuestions() ([]models.Question, error) {
-	log.Info("store.GetQuestions()")
-	return fetch[models.Question](s.db, s.questionsTable)
+	return fetch[models.Question](s.logger, s.db, s.questionsTable)
 }
 
 func (s *publishingStore) GetDatasetProposal(userId int, nodeId string) (*models.DatasetProposal, error) {
-	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("store.GetDatasetProposal()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
 		KeyConditionExpression: aws.String("UserId = :userId AND NodeId = :nodeId"),
@@ -233,11 +234,10 @@ func (s *publishingStore) GetDatasetProposal(userId int, nodeId string) (*models
 			},
 		},
 	}
-	return get[models.DatasetProposal](s.db, &queryInput)
+	return get[models.DatasetProposal](s.logger, s.db, &queryInput)
 }
 
 func (s *publishingStore) GetDatasetProposalsForUser(userId int64) ([]models.DatasetProposal, error) {
-	log.WithFields(log.Fields{"userId": userId}).Info("store.GetDatasetProposalsForUser()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
 		KeyConditionExpression: aws.String("UserId = :userId"),
@@ -247,11 +247,10 @@ func (s *publishingStore) GetDatasetProposalsForUser(userId int64) ([]models.Dat
 			},
 		},
 	}
-	return find[models.DatasetProposal](s.db, &queryInput)
+	return find[models.DatasetProposal](s.logger, s.db, &queryInput)
 }
 
 func (s *publishingStore) GetDatasetProposalsForWorkspace(orgNodeId string, status string) ([]models.DatasetProposal, error) {
-	log.WithFields(log.Fields{"orgNodeId": orgNodeId}).Info("store.GetDatasetProposalsForWorkspace()")
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
 		IndexName:              aws.String("RepositoryProposalStatusIndex"),
@@ -266,48 +265,47 @@ func (s *publishingStore) GetDatasetProposalsForWorkspace(orgNodeId string, stat
 		},
 		Select: "ALL_PROJECTED_ATTRIBUTES",
 	}
-	return find[models.DatasetProposal](s.db, &queryInput)
+	return find[models.DatasetProposal](s.logger, s.db, &queryInput)
 }
 
 func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
-	log.Info("store.CreateDatasetProposal()")
-
-	result, err := store(s.db, s.datasetProposalsTable, proposal)
+	_, err := store(s.logger, s.db, s.datasetProposalsTable, proposal)
 	if err != nil {
-		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store() failed creating dataset proposal")
+		s.logger.Error("PutItem() failed creating dataset proposal",
+			slog.String(logging.KeyTable, s.datasetProposalsTable),
+			slog.String(logging.KeyNodeID, proposal.NodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
-	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("store.CreateDatasetProposal()")
 
 	return proposal, nil
 }
 
 func (s *publishingStore) UpdateDatasetProposal(proposal *models.DatasetProposal) (*models.DatasetProposal, error) {
-	log.Info("store.UpdateDatasetProposal()")
-
-	result, err := store(s.db, s.datasetProposalsTable, proposal)
+	_, err := store(s.logger, s.db, s.datasetProposalsTable, proposal)
 	if err != nil {
-		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store() failed updating dataset proposal")
+		s.logger.Error("PutItem() failed updating dataset proposal",
+			slog.String(logging.KeyTable, s.datasetProposalsTable),
+			slog.String(logging.KeyNodeID, proposal.NodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
-	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("store.UpdateDatasetProposal()")
 
 	return proposal, nil
 }
 
 func (s *publishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal) error {
-	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Info("store.DeleteDatasetProposal()")
-
 	var err error
 	proposalKey, err := attributevalue.MarshalMap(models.DatasetProposalKey{
 		UserId: proposal.UserId,
 		NodeId: proposal.NodeId,
 	})
 	if err != nil {
-		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("attributevalue.MarshalMap() failed marshalling proposal key")
+		s.logger.Error("attributevalue.MarshalMap() failed marshalling proposal key",
+			slog.String(logging.KeyNodeID, proposal.NodeId),
+			slog.Any(logging.KeyError, err))
 		return err
 	}
-	log.WithFields(log.Fields{"proposalKey": fmt.Sprintf("%+v", proposalKey)}).Debug("store.DeleteDatasetProposal()")
 
 	_, err = s.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
 		TableName: aws.String(s.datasetProposalsTable),
@@ -315,7 +313,10 @@ func (s *publishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal
 	})
 
 	if err != nil {
-		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("DeleteItem() failed deleting dataset proposal")
+		s.logger.Error("DeleteItem() failed deleting dataset proposal",
+			slog.String(logging.KeyTable, s.datasetProposalsTable),
+			slog.String(logging.KeyNodeID, proposal.NodeId),
+			slog.Any(logging.KeyError, err))
 		return err
 	}
 
@@ -323,8 +324,6 @@ func (s *publishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal
 }
 
 func (s *publishingStore) GetDatasetProposalForRepository(orgNodeId string, status string, nodeId string) (*models.DatasetProposal, error) {
-	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "status": status, "nodeId": nodeId}).Info("store.GetDatasetProposalForRepositoryWithStatus()")
-
 	queryInput := dynamodb.QueryInput{
 		TableName:              aws.String(s.datasetProposalsTable),
 		IndexName:              aws.String("RepositoryProposalStatusIndex"),
@@ -343,5 +342,5 @@ func (s *publishingStore) GetDatasetProposalForRepository(orgNodeId string, stat
 		},
 		Select: "ALL_PROJECTED_ATTRIBUTES",
 	}
-	return get[models.DatasetProposal](s.db, &queryInput)
+	return get[models.DatasetProposal](s.logger, s.db, &queryInput)
 }

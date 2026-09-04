@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/pennsieve/pennsieve-go-core/pkg/models/role"
-	pgdbModels "github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
-	pgdbQueries "github.com/pennsieve/pennsieve-go-core/pkg/queries/pgdb"
-	"github.com/pennsieve/publishing-service/api/models"
-	log "github.com/sirupsen/logrus"
+	"log/slog"
 	"strings"
+
+	pgdbModels "github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
+	"github.com/pennsieve/pennsieve-go-core/pkg/models/role"
+	pgdbQueries "github.com/pennsieve/pennsieve-go-core/pkg/queries/pgdb"
+	"github.com/pennsieve/publishing-service/api/logging"
+	"github.com/pennsieve/publishing-service/api/models"
 )
 
 const SystemTeamTypePublishers = "publishers"
@@ -25,27 +27,33 @@ type PennsievePublishingStore interface {
 	GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.Organization, error)
 }
 
-// NewPennsieveStore builds a store backed by db. It returns an error (rather
-// than panicking) when the initial transaction cannot be started, so that a
-// transient database problem fails the one request instead of the process.
-func NewPennsieveStore(db *sql.DB, orgId int64) (*pennsieveStore, error) {
+// NewPennsieveStore builds a store backed by db. logger is the request-scoped
+// logger built at the entrypoint, held on the struct so no method has to reach
+// for slog.Default. It returns an error (rather than panicking) when the
+// initial transaction cannot be started, so that a transient database problem
+// fails the one request instead of the process.
+func NewPennsieveStore(logger *slog.Logger, db *sql.DB, orgId int64) (*pennsieveStore, error) {
 	dbTx, err := db.BeginTx(context.TODO(), nil)
 	if err != nil {
-		log.WithFields(log.Fields{"orgId": orgId, "error": fmt.Sprintf("%+v", err)}).Error("db.BeginTx() failed constructing pennsieve store")
+		logger.Error("db.BeginTx() failed constructing pennsieve store",
+			slog.Int64(logging.KeyOrgID, orgId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
 	return &pennsieveStore{
-		orgId: orgId,
-		db:    db,
-		q:     pgdbQueries.New(dbTx),
+		logger: logger,
+		orgId:  orgId,
+		db:     db,
+		q:      pgdbQueries.New(dbTx),
 	}, nil
 }
 
 type pennsieveStore struct {
-	orgId int64
-	db    *sql.DB
-	q     *pgdbQueries.Queries
+	logger *slog.Logger
+	orgId  int64
+	db     *sql.DB
+	q      *pgdbQueries.Queries
 }
 
 type CreatedDataset struct {
@@ -54,12 +62,14 @@ type CreatedDataset struct {
 	Dataset      *pgdbModels.Dataset
 }
 
-func setOrgSearchPath(db *sql.DB, orgId int64) error {
+func setOrgSearchPath(logger *slog.Logger, db *sql.DB, orgId int64) error {
 	// Set Search Path to organization
 	ctx := context.Background()
 	_, err := db.ExecContext(ctx, fmt.Sprintf("SET search_path = \"%d\";", orgId))
 	if err != nil {
-		log.Error(fmt.Sprintf("Unable to set search_path to %d.", orgId))
+		logger.Error("unable to set search_path to organization schema",
+			slog.Int64(logging.KeyOrgID, orgId),
+			slog.Any(logging.KeyError, err))
 		return err
 	}
 
@@ -75,13 +85,16 @@ func (p *pennsieveStore) ExecStoreTx(ctx context.Context, orgId int64, fn func(s
 
 	// if organization id was provided, then set search path
 	if orgId > 0 {
-		if err = setOrgSearchPath(p.db, orgId); err != nil {
+		if err = setOrgSearchPath(p.logger, p.db, orgId); err != nil {
 			return err
 		}
 	}
 
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
+		p.logger.Error("db.BeginTx() failed",
+			slog.Int64(logging.KeyOrgID, orgId),
+			slog.Any(logging.KeyError, err))
 		return err
 	}
 
@@ -89,12 +102,21 @@ func (p *pennsieveStore) ExecStoreTx(ctx context.Context, orgId int64, fn func(s
 	err = fn(q)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
+			p.logger.Error("tx.Rollback() failed after a failed transaction",
+				slog.Int64(logging.KeyOrgID, orgId),
+				slog.Any(logging.KeyError, rbErr))
 			return fmt.Errorf("tx err: %v, rb err: %v", err, rbErr)
 		}
 		return err
 	}
 
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		p.logger.Error("tx.Commit() failed",
+			slog.Int64(logging.KeyOrgID, orgId),
+			slog.Any(logging.KeyError, err))
+		return err
+	}
+	return nil
 }
 
 func (p *pennsieveStore) ExecPennsieveStoreTx(ctx context.Context, orgId int64, fn func(store *pennsieveStore) error) error {
@@ -102,25 +124,37 @@ func (p *pennsieveStore) ExecPennsieveStoreTx(ctx context.Context, orgId int64, 
 
 	// if organization id was provided, then set search path
 	if orgId > 0 {
-		if err = setOrgSearchPath(p.db, orgId); err != nil {
+		if err = setOrgSearchPath(p.logger, p.db, orgId); err != nil {
 			return err
 		}
 	}
 
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
+		p.logger.Error("db.BeginTx() failed",
+			slog.Int64(logging.KeyOrgID, orgId),
+			slog.Any(logging.KeyError, err))
 		return err
 	}
 
 	err = fn(p)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
+			p.logger.Error("tx.Rollback() failed after a failed transaction",
+				slog.Int64(logging.KeyOrgID, orgId),
+				slog.Any(logging.KeyError, rbErr))
 			return fmt.Errorf("tx err: %v, rb err: %v", err, rbErr)
 		}
 		return err
 	}
 
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		p.logger.Error("tx.Commit() failed",
+			slog.Int64(logging.KeyOrgID, orgId),
+			slog.Any(logging.KeyError, err))
+		return err
+	}
+	return nil
 }
 
 func (p *pennsieveStore) GetProposalUser(ctx context.Context, userId int64) (*pgdbModels.User, error) {
@@ -164,7 +198,12 @@ func (p *pennsieveStore) GetPublishingTeam(ctx context.Context, workspaceId int6
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			log.Error("No rows were returned!")
+			p.logger.Error("no publishing team found for workspace",
+				slog.Int64(logging.KeyWorkspaceID, workspaceId))
+		} else {
+			p.logger.Error("failed to query publishing team for workspace",
+				slog.Int64(logging.KeyWorkspaceID, workspaceId),
+				slog.Any(logging.KeyError, err))
 		}
 		return nil, err
 	}
@@ -214,9 +253,12 @@ func (p *pennsieveStore) GetPublishingTeamMembers(ctx context.Context, repositor
 
 	rows, err := p.db.QueryContext(ctx, queryStr, repository.OrganizationNodeId)
 	if err != nil {
-		log.WithFields(log.Fields{"QueryContext": "failed", "error": fmt.Sprintf("%+v", err)}).Error("GetPublishingTeamMembers()")
+		p.logger.Error("failed to query publishing team members",
+			slog.String(logging.KeyOrgNodeID, repository.OrganizationNodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
+	defer rows.Close()
 
 	var publishers []models.Publisher
 	for rows.Next() {
@@ -234,10 +276,18 @@ func (p *pennsieveStore) GetPublishingTeamMembers(ctx context.Context, repositor
 			&publisher.UserWorkspacePermissionBit,
 		)
 		if err != nil {
-			log.WithFields(log.Fields{"status": "error", "error": fmt.Sprintf("%+v", err)}).Error("rows.Scan()")
+			p.logger.Error("rows.Scan() failed reading a publishing team member",
+				slog.String(logging.KeyOrgNodeID, repository.OrganizationNodeId),
+				slog.Any(logging.KeyError, err))
 		} else {
 			publishers = append(publishers, publisher)
 		}
+	}
+	if err := rows.Err(); err != nil {
+		p.logger.Error("failed iterating publishing team members",
+			slog.String(logging.KeyOrgNodeID, repository.OrganizationNodeId),
+			slog.Any(logging.KeyError, err))
+		return nil, err
 	}
 
 	return publishers, nil
@@ -249,18 +299,20 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 	// Get the Pennsieve User
 	user, err := p.q.GetUserById(ctx, int64(proposal.UserId))
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "GetUserById", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to GetUserById id: %d (error: %+v)", int64(proposal.UserId), err))
+		p.logger.Error("GetUserById() failed",
+			slog.Int64(logging.KeyUserID, int64(proposal.UserId)),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to GetUserById: %w", err)
 	}
-	log.WithFields(log.Fields{"user": fmt.Sprintf("%+v", user)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
 
 	// Get the Organization
 	organization, err := p.q.GetOrganization(ctx, p.orgId)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "GetOrganization", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to GetOrganization id: %d (error: %+v)", p.orgId, err))
+		p.logger.Error("GetOrganization() failed",
+			slog.Int64(logging.KeyOrgID, p.orgId),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to GetOrganization: %w", err)
 	}
-	log.WithFields(log.Fields{"organization": fmt.Sprintf("%+v", organization)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
 
 	// Add the Pennsieve User to the Workspace as a Guest
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdbQueries.Queries) error {
@@ -268,31 +320,41 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 		return err
 	})
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "AddOrganizationUser", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to AddOrganizationUser orgId: %d userId: %d permBit: %d (error: %+v)", p.orgId, user.Id, pgdbModels.Guest, err))
+		p.logger.Error("AddOrganizationUser() failed",
+			slog.Int64(logging.KeyOrgID, p.orgId),
+			slog.Int64(logging.KeyUserID, user.Id),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to AddOrganizationUser: %w", err)
 	}
 	orgUser, err := p.q.GetOrganizationUser(ctx, p.orgId, user.Id)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "GetOrganizationUser", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to GetOrganizationUser orgId: %d userId: %d (error: %+v)", p.orgId, user.Id, err))
+		p.logger.Error("GetOrganizationUser() failed",
+			slog.Int64(logging.KeyOrgID, p.orgId),
+			slog.Int64(logging.KeyUserID, user.Id),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to GetOrganizationUser: %w", err)
 	}
-	log.WithFields(log.Fields{"orgUser": fmt.Sprintf("%+v", orgUser)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
+	p.logger.Debug("added user to workspace",
+		slog.Int64(logging.KeyOrgID, p.orgId),
+		slog.Int64(logging.KeyUserID, orgUser.UserId))
 
 	// get the default dataset status
 	datasetStatus, err := p.q.GetDefaultDatasetStatus(ctx, int(p.orgId))
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "GetDefaultDatasetStatus", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to GetDefaultDatasetStatus organizationId: %d (error: %+v)", int(p.orgId), err))
+		p.logger.Error("GetDefaultDatasetStatus() failed",
+			slog.Int64(logging.KeyOrgID, p.orgId),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to GetDefaultDatasetStatus: %w", err)
 	}
-	log.WithFields(log.Fields{"datasetStatus": fmt.Sprintf("%+v", datasetStatus)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
 
 	// get the default data use agreement
 	dataUseAgreement, err := p.q.GetDefaultDataUseAgreement(ctx, int(p.orgId))
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "GetDefaultDataUseAgreement", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to GetDefaultDataUseAgreement organizationId: %d (error: %+v)", int(p.orgId), err))
+		p.logger.Error("GetDefaultDataUseAgreement() failed",
+			slog.Int64(logging.KeyOrgID, p.orgId),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to GetDefaultDataUseAgreement: %w", err)
 	}
-	log.WithFields(log.Fields{"dataUseAgreement": fmt.Sprintf("%+v", dataUseAgreement)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
 
 	// create the dataset
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdbQueries.Queries) error {
@@ -308,15 +370,18 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 		return err
 	})
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "CreateDataset", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to CreateDataset (error: %+v)", err))
+		p.logger.Error("CreateDataset() failed",
+			slog.Int64(logging.KeyOrgID, p.orgId),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to CreateDataset: %w", err)
 	}
 	ds, err := p.q.GetDatasetByName(ctx, proposal.Name)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "GetDatasetByName", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to GetDatasetByName (error: %+v)", err))
+		p.logger.Error("GetDatasetByName() failed",
+			slog.Int64(logging.KeyOrgID, p.orgId),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to GetDatasetByName: %w", err)
 	}
-	log.WithFields(log.Fields{"ds": fmt.Sprintf("%+v", ds)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
 
 	// create the contributor record
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdbQueries.Queries) error {
@@ -329,15 +394,18 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 		return err
 	})
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "AddContributor", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to AddContributor (error: %+v)", err))
+		p.logger.Error("AddContributor() failed",
+			slog.Int64(logging.KeyUserID, user.Id),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to AddContributor: %w", err)
 	}
 	contributor, err := p.q.GetContributorByUserId(ctx, user.Id)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "GetContributorByUserId", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to GetContributorByUserId (error: %+v)", err))
+		p.logger.Error("GetContributorByUserId() failed",
+			slog.Int64(logging.KeyUserID, user.Id),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to GetContributorByUserId: %w", err)
 	}
-	log.WithFields(log.Fields{"contributor": fmt.Sprintf("%+v", contributor)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
 
 	// attach the contributor to the dataset
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdbQueries.Queries) error {
@@ -345,15 +413,21 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 		return err
 	})
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "AddDatasetContributor", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to AddDatasetContributor (error: %+v)", err))
+		p.logger.Error("AddDatasetContributor() failed",
+			slog.Int64(logging.KeyDatasetID, ds.Id),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to AddDatasetContributor: %w", err)
 	}
 	datasetContributor, err := p.q.GetDatasetContributor(ctx, ds.Id, contributor.Id)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "GetDatasetContributor", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to GetDatasetContributor (error: %+v)", err))
+		p.logger.Error("GetDatasetContributor() failed",
+			slog.Int64(logging.KeyDatasetID, ds.Id),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to GetDatasetContributor: %w", err)
 	}
-	log.WithFields(log.Fields{"datasetContributor": fmt.Sprintf("%+v", datasetContributor)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
+	p.logger.Debug("attached contributor to dataset",
+		slog.Int64(logging.KeyDatasetID, ds.Id),
+		slog.Int64("contributorId", datasetContributor.ContributorId))
 
 	// add the user to the dataset as the owner
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdbQueries.Queries) error {
@@ -361,29 +435,42 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 		return err
 	})
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "AddDatasetUser", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to AddDatasetUser (error: %+v)", err))
+		p.logger.Error("AddDatasetUser() failed",
+			slog.Int64(logging.KeyDatasetID, ds.Id),
+			slog.Int64(logging.KeyUserID, user.Id),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to AddDatasetUser: %w", err)
 	}
 	datasetUser, err := p.q.GetDatasetUser(ctx, ds, user)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "GetDatasetUser", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to GetDatasetUser (error: %+v)", err))
+		p.logger.Error("GetDatasetUser() failed",
+			slog.Int64(logging.KeyDatasetID, ds.Id),
+			slog.Int64(logging.KeyUserID, user.Id),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to GetDatasetUser: %w", err)
 	}
-	log.WithFields(log.Fields{"datasetUser": fmt.Sprintf("%+v", datasetUser)}).Debug("pennsieveStore.CreateDatasetForAcceptedProposal()")
+	p.logger.Debug("added user to dataset as owner",
+		slog.Int64(logging.KeyDatasetID, ds.Id),
+		slog.Int64(logging.KeyUserID, datasetUser.UserId))
 
 	// add Publishers team to the newly created dataset
 	publishingTeam, err := p.GetPublishingTeam(ctx, organization.Id)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "GetPublishingTeam", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to GetPublishingTeam (error: %+v)", err))
+		p.logger.Error("GetPublishingTeam() failed",
+			slog.Int64(logging.KeyOrgID, organization.Id),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to GetPublishingTeam: %w", err)
 	}
 
 	err = p.ExecPennsieveStoreTx(ctx, organization.Id, func(store *pennsieveStore) error {
 		return store.AddPublishingTeamToDataset(ctx, publishingTeam, ds)
 	})
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "AddPublishingTeamToDataset", "err": fmt.Sprintf("%+v", err)}).Error("pennsieveStore.CreateDatasetForAcceptedProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to AddPublishingTeamToDataset (error: %+v)", err))
+		p.logger.Error("AddPublishingTeamToDataset() failed",
+			slog.Int64(logging.KeyOrgID, organization.Id),
+			slog.Int64(logging.KeyDatasetID, ds.Id),
+			slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to AddPublishingTeamToDataset: %w", err)
 	}
 
 	return &CreatedDataset{

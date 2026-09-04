@@ -5,22 +5,28 @@ package s3
 
 import (
 	"context"
+	"log/slog"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	log "github.com/sirupsen/logrus"
-	"time"
+	"github.com/pennsieve/publishing-service/api/logging"
 )
 
-func MakePresigner() *Presigner {
+// MakePresigner builds a Presigner. logger is the request-scoped logger built
+// at the entrypoint, held on the struct so no method has to reach for
+// slog.Default.
+func MakePresigner(logger *slog.Logger) *Presigner {
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
-		// TODO: handle error
+		logger.Error("config.LoadDefaultConfig() failed building presigner", slog.Any(logging.KeyError, err))
 	}
 	s3Client := s3.NewFromConfig(cfg)
 	presignClient := s3.NewPresignClient(s3Client)
 	return &Presigner{
+		logger:        logger,
 		PresignClient: presignClient,
 	}
 }
@@ -30,6 +36,7 @@ func MakePresigner() *Presigner {
 // It contains PresignClient, a client that is used to presign requests to Amazon S3.
 // Presigned requests contain temporary credentials and can be made from any HTTP client.
 type Presigner struct {
+	logger        *slog.Logger
 	PresignClient *s3.PresignClient
 }
 
@@ -44,8 +51,10 @@ func (presigner Presigner) GetObject(
 		opts.Expires = time.Duration(lifetimeSecs * int64(time.Second))
 	})
 	if err != nil {
-		log.Printf("Couldn't get a presigned request to get %v:%v. Here's why: %v\n",
-			bucketName, objectKey, err)
+		presigner.logger.Error("failed to presign an S3 GetObject request",
+			slog.String(logging.KeyS3Bucket, bucketName),
+			slog.String(logging.KeyS3Key, objectKey),
+			slog.Any(logging.KeyError, err))
 	}
 	return request, err
 }
@@ -61,8 +70,10 @@ func (presigner Presigner) PutObject(
 		opts.Expires = time.Duration(lifetimeSecs * int64(time.Second))
 	})
 	if err != nil {
-		log.Printf("Couldn't get a presigned request to put %v:%v. Here's why: %v\n",
-			bucketName, objectKey, err)
+		presigner.logger.Error("failed to presign an S3 PutObject request",
+			slog.String(logging.KeyS3Bucket, bucketName),
+			slog.String(logging.KeyS3Key, objectKey),
+			slog.Any(logging.KeyError, err))
 	}
 	return request, err
 }
@@ -74,7 +85,10 @@ func (presigner Presigner) DeleteObject(bucketName string, objectKey string) (*v
 		Key:    aws.String(objectKey),
 	})
 	if err != nil {
-		log.Printf("Couldn't get a presigned request to delete object %v. Here's why: %v\n", objectKey, err)
+		presigner.logger.Error("failed to presign an S3 DeleteObject request",
+			slog.String(logging.KeyS3Bucket, bucketName),
+			slog.String(logging.KeyS3Key, objectKey),
+			slog.Any(logging.KeyError, err))
 	}
 	return request, err
 }

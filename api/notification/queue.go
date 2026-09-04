@@ -3,12 +3,13 @@ package notification
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	emailclient "github.com/pennsieve/email-service/client"
-	log "github.com/sirupsen/logrus"
+	"github.com/pennsieve/publishing-service/api/logging"
 )
 
 // QueueNotifier is a Notifier that sends proposal emails through the Pennsieve
@@ -20,12 +21,14 @@ import (
 // so the call sites in api/service do not change.
 type QueueNotifier struct {
 	ctx    context.Context
+	logger *slog.Logger
 	client *emailclient.Client
 }
 
 // NewQueueNotifier constructs a QueueNotifier. EMAIL_SERVICE_QUEUE_URL is the
-// URL of the email-service send queue for the environment.
-func NewQueueNotifier(ctx context.Context) (*QueueNotifier, error) {
+// URL of the email-service send queue for the environment. logger is the
+// request-scoped logger built at the entrypoint.
+func NewQueueNotifier(ctx context.Context, logger *slog.Logger) (*QueueNotifier, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("loading AWS config for QueueNotifier: %w", err)
@@ -36,6 +39,7 @@ func NewQueueNotifier(ctx context.Context) (*QueueNotifier, error) {
 	}
 	return &QueueNotifier{
 		ctx:    ctx,
+		logger: logger,
 		client: emailclient.New(sqs.NewFromConfig(cfg), queueURL),
 	}, nil
 }
@@ -50,8 +54,11 @@ func (q *QueueNotifier) send(build func(to emailclient.To) emailclient.EmailRequ
 		}
 		req := build(emailclient.To{Email: addr})
 		if err := q.client.Send(q.ctx, req); err != nil {
-			log.WithFields(log.Fields{"recipient": addr, "messageId": req.MessageId, "error": fmt.Sprintf("%+v", err)}).
-				Error("QueueNotifier.send()")
+			// The recipient address is not logged; the message id identifies
+			// the enqueued request in the email-service journal.
+			q.logger.Error("failed to enqueue an email request",
+				slog.String(logging.KeyMessageID, req.MessageId),
+				slog.Any(logging.KeyError, err))
 			return err
 		}
 	}

@@ -24,11 +24,13 @@ const (
 	KeyStatus = "status"
 
 	// Identities.
-	KeyOrgID     = "orgId"
-	KeyOrgNodeID = "orgNodeId"
-	KeyUserID    = "userId"
-	KeyNodeID    = "nodeId"
-	KeyDatasetID = "datasetId"
+	KeyOrgID       = "orgId"
+	KeyOrgNodeID   = "orgNodeId"
+	KeyUserID      = "userId"
+	KeyNodeID      = "nodeId"
+	KeyDatasetID   = "datasetId"
+	KeyWorkspaceID = "workspaceId"
+	KeyTeamID      = "teamId"
 
 	// Domain objects.
 	KeyProposal       = "proposal"
