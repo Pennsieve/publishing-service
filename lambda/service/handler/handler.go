@@ -64,13 +64,18 @@ func handleRequest(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2
 
 		db, err := pgdb.ConnectRDSWithOrg(int(orgId))
 		if err != nil {
-			panic(fmt.Sprintf("unable to connect to RDS database: %s", err))
+			log.WithFields(log.Fields{"orgId": orgId, "error": fmt.Sprintf("%+v", err)}).Error("unable to connect to RDS database")
+			return &events.APIGatewayV2HTTPResponse{StatusCode: 500}, nil
 		}
 		log.WithFields(log.Fields{"orgId": orgId, "resource": "database", "action": "connect"}).Info("connected to RDS database")
 		defer db.Close()
 
 		pubStore := store.NewPublishingStore()
-		pennsieve := store.NewPennsieveStore(db, orgId)
+		pennsieve, err := store.NewPennsieveStore(db, orgId)
+		if err != nil {
+			log.WithFields(log.Fields{"orgId": orgId, "error": fmt.Sprintf("%+v", err)}).Error("failed to create pennsieve store")
+			return &events.APIGatewayV2HTTPResponse{StatusCode: 500}, nil
+		}
 		// Emails are sent via the Pennsieve email-service (enqueue -> consumer
 		// renders + delivers), replacing the previous direct-SES EmailNotifier.
 		notifier, err := notification.NewQueueNotifier(context.TODO())
@@ -281,8 +286,8 @@ func handleCreateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 	log.Println("handleCreateDatasetProposal()")
 	err := fastjson.Validate(request.Body)
 	if err != nil {
-		log.Fatalln("handleCreateDatasetProposal() request body validation failed: ", err)
-		return nil, 500
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("request body validation failed")
+		return nil, 400
 	}
 
 	// Unmarshal JSON into Dataset Proposal DTO
@@ -293,14 +298,14 @@ func handleCreateDatasetProposal(request events.APIGatewayV2HTTPRequest, claims 
 
 	resultDTO, err := service.CreateDatasetProposal(claims.UserClaim.Id, requestDTO)
 	if err != nil {
-		log.Fatalln("handleCreateDatasetProposal() - service.CreateDatasetProposal() failed: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.CreateDatasetProposal() failed")
 		return nil, 500
 	}
 	log.WithFields(log.Fields{"resultDTO": fmt.Sprintf("%+v", resultDTO)}).Debug("handleCreateDatasetProposal()")
 
 	jsonBody, err := json.Marshal(resultDTO)
 	if err != nil {
-		log.Fatalln("handleCreateDatasetProposal() - json.Marshal() failed: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("json.Marshal() failed")
 		// TODO: provide a better response than nil on a 500
 		return nil, 500
 	}

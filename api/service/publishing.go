@@ -141,7 +141,7 @@ func (s *publishingService) GetPublishingInfo() ([]dtos.InfoDTO, error) {
 
 	info, err := s.store.GetInfo()
 	if err != nil {
-		log.Fatalln("GetPublishingInfo() store.GetInfo() err: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store.GetInfo() failed")
 		return nil, err
 	}
 
@@ -159,13 +159,13 @@ func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, e
 
 	repositories, err := s.store.GetRepositories()
 	if err != nil {
-		log.Fatalln("GetPublishingRepositories() store.GetRepositories() err: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store.GetRepositories() failed")
 		return nil, err
 	}
 
 	questions, err := s.store.GetQuestions()
 	if err != nil {
-		log.Fatalln("GetPublishingRepositories() store.GetQuestions() err: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store.GetQuestions() failed")
 		return nil, err
 	}
 
@@ -189,7 +189,7 @@ func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
 
 	questions, err := s.store.GetQuestions()
 	if err != nil {
-		log.Fatalln("GetProposalQuestions() store.GetQuestions() err: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store.GetQuestions() failed")
 		return nil, err
 	}
 
@@ -293,7 +293,7 @@ func (s *publishingService) CreateDatasetProposal(userId int64, dto dtos.Dataset
 
 	_, err = s.store.CreateDatasetProposal(proposal)
 	if err != nil {
-		log.Fatalln("service.CreateDatasetProposal() - store.CreateDatasetProposal() failed: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store.CreateDatasetProposal() failed")
 		return nil, err
 	}
 
@@ -340,7 +340,7 @@ func (s *publishingService) UpdateDatasetProposal(userId int64, existing dtos.Da
 
 	_, err = s.store.UpdateDatasetProposal(updated)
 	if err != nil {
-		log.Fatalln("store.UpdateDatasetProposal() failed: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store.UpdateDatasetProposal() failed")
 		return nil, err
 	}
 
@@ -355,7 +355,7 @@ func (s *publishingService) DeleteDatasetProposal(proposalDTO dtos.DatasetPropos
 
 	err := s.store.DeleteDatasetProposal(proposal)
 	if err != nil {
-		log.Fatalln("store.DeleteDatasetProposal() failed: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store.DeleteDatasetProposal() failed")
 		return false, err
 	}
 

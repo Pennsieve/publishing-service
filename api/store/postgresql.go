@@ -25,17 +25,21 @@ type PennsievePublishingStore interface {
 	GetWelcomeWorkspace(ctx context.Context) (*pgdbModels.Organization, error)
 }
 
-func NewPennsieveStore(db *sql.DB, orgId int64) *pennsieveStore {
+// NewPennsieveStore builds a store backed by db. It returns an error (rather
+// than panicking) when the initial transaction cannot be started, so that a
+// transient database problem fails the one request instead of the process.
+func NewPennsieveStore(db *sql.DB, orgId int64) (*pennsieveStore, error) {
 	dbTx, err := db.BeginTx(context.TODO(), nil)
 	if err != nil {
-		panic(err)
+		log.WithFields(log.Fields{"orgId": orgId, "error": fmt.Sprintf("%+v", err)}).Error("db.BeginTx() failed constructing pennsieve store")
+		return nil, err
 	}
 
 	return &pennsieveStore{
 		orgId: orgId,
 		db:    db,
 		q:     pgdbQueries.New(dbTx),
-	}
+	}, nil
 }
 
 type pennsieveStore struct {

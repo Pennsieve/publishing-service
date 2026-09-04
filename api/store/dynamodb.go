@@ -179,7 +179,7 @@ func store(client *dynamodb.Client, table string, item *models.DatasetProposal) 
 	var err error
 	data, err := attributevalue.MarshalMap(item)
 	if err != nil {
-		log.Fatalln("store.CreateDatasetProposal() - attributevalue.MarshalMap() failed: ", err)
+		log.WithFields(log.Fields{"table": table, "error": fmt.Sprintf("%+v", err)}).Error("attributevalue.MarshalMap() failed")
 		return nil, err
 	}
 	log.WithFields(log.Fields{"data": fmt.Sprintf("%+v", data)}).Debug("store.CreateDatasetProposal()")
@@ -274,7 +274,7 @@ func (s *publishingStore) CreateDatasetProposal(proposal *models.DatasetProposal
 
 	result, err := store(s.db, s.datasetProposalsTable, proposal)
 	if err != nil {
-		log.Fatalln("store.CreateDatasetProposal() - store() failed: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store() failed creating dataset proposal")
 		return nil, err
 	}
 	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("store.CreateDatasetProposal()")
@@ -287,7 +287,7 @@ func (s *publishingStore) UpdateDatasetProposal(proposal *models.DatasetProposal
 
 	result, err := store(s.db, s.datasetProposalsTable, proposal)
 	if err != nil {
-		log.Fatalln("store.UpdateDatasetProposal() - store() failed: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("store() failed updating dataset proposal")
 		return nil, err
 	}
 	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("store.UpdateDatasetProposal()")
@@ -304,7 +304,7 @@ func (s *publishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal
 		NodeId: proposal.NodeId,
 	})
 	if err != nil {
-		log.Fatalln("store.DeleteDatasetProposal() - MarshalMap() failed: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("attributevalue.MarshalMap() failed marshalling proposal key")
 		return err
 	}
 	log.WithFields(log.Fields{"proposalKey": fmt.Sprintf("%+v", proposalKey)}).Debug("store.DeleteDatasetProposal()")
@@ -315,7 +315,7 @@ func (s *publishingStore) DeleteDatasetProposal(proposal *models.DatasetProposal
 	})
 
 	if err != nil {
-		log.Fatalln("store.DeleteDatasetProposal() - DeleteItem() failed: ", err)
+		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("DeleteItem() failed deleting dataset proposal")
 		return err
 	}
 
