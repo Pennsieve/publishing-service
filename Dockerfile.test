@@ -6,7 +6,11 @@ apk update; \
 apk add --no-cache git
 
   # Set working directory
-WORKDIR /go/src/github.com/pennsieve/publishing-service/lambda/service
+WORKDIR /go/src/github.com/pennsieve/publishing-service
 
-  # Run tests
-CMD CGO_ENABLED=0 go test -v ./...
+  # Run tests for both modules. This repo is two Go modules (api and
+  # lambda/service, linked by a replace directive), so a single `go test ./...`
+  # in either one misses the other; previously only lambda/service ran.
+CMD set -e; \
+    cd /go/src/github.com/pennsieve/publishing-service/api && CGO_ENABLED=0 go test -v ./...; \
+    cd /go/src/github.com/pennsieve/publishing-service/lambda/service && CGO_ENABLED=0 go test -v ./...
