@@ -2,28 +2,35 @@ package ses
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/ses/types"
 	sesTypes "github.com/pennsieve/publishing-service/api/aws/ses/types"
-	log "github.com/sirupsen/logrus"
+	"github.com/pennsieve/publishing-service/api/logging"
 )
 
-func MakeEmailer() *Emailer {
+// MakeEmailer builds an Emailer. logger is the request-scoped logger built at
+// the entrypoint, held on the struct so no method has to reach for
+// slog.Default.
+func MakeEmailer(logger *slog.Logger) *Emailer {
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
-		// TODO: handle error
+		logger.Error("config.LoadDefaultConfig() failed building emailer", slog.Any(logging.KeyError, err))
 	}
 
 	client := ses.NewFromConfig(cfg)
 	return &Emailer{
+		logger:  logger,
 		Client:  client,
 		CharSet: "UTF-8",
 	}
 }
 
 type Emailer struct {
+	logger  *slog.Logger
 	Client  *ses.Client
 	CharSet string
 }
@@ -76,10 +83,16 @@ func (emailer *Emailer) SendMessage(ctx context.Context, sender string, recipien
 
 	result, err := emailer.Client.SendEmail(ctx, message)
 	if err != nil {
-		log.WithFields(log.Fields{"SendMessage": "failure", "error": fmt.Sprintf("%+v", err)}).Info("Emailer.SendMessage()")
+		emailer.logger.Error("ses SendEmail() failed",
+			slog.Int(logging.KeyCount, len(recipients)),
+			slog.String(logging.KeySubject, subject),
+			slog.Any(logging.KeyError, err))
 		return err
 	}
 
-	log.WithFields(log.Fields{"SendMessage": "success", "result": fmt.Sprintf("%+v", result)}).Info("Emailer.SendMessage()")
+	emailer.logger.Info("sent email via SES",
+		slog.Int(logging.KeyCount, len(recipients)),
+		slog.String(logging.KeySubject, subject),
+		slog.String(logging.KeyMessageID, aws.ToString(result.MessageId)))
 	return nil
 }

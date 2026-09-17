@@ -3,17 +3,19 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
+	"time"
+
 	"github.com/google/uuid"
 	pgdbModels "github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
 	"github.com/pennsieve/publishing-service/api/aws/ses"
 	sesTypes "github.com/pennsieve/publishing-service/api/aws/ses/types"
 	"github.com/pennsieve/publishing-service/api/dtos"
+	"github.com/pennsieve/publishing-service/api/logging"
 	"github.com/pennsieve/publishing-service/api/models"
 	"github.com/pennsieve/publishing-service/api/notification"
 	"github.com/pennsieve/publishing-service/api/store"
-	log "github.com/sirupsen/logrus"
-	"os"
-	"time"
 )
 
 type PublishingService interface {
@@ -32,8 +34,13 @@ type PublishingService interface {
 	RejectDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error)
 }
 
-func NewPublishingService(pubStore store.PublishingStore, pennsieve store.PennsievePublishingStore, notifier notification.Notifier) *publishingService {
+// NewPublishingService builds the service for one request. logger is the
+// request-scoped logger built at the entrypoint (carrying the trace id and the
+// org/user context); it is held on the struct so no method has to reach for
+// slog.Default.
+func NewPublishingService(logger *slog.Logger, pubStore store.PublishingStore, pennsieve store.PennsievePublishingStore, notifier notification.Notifier) *publishingService {
 	return &publishingService{
+		logger:    logger,
 		store:     pubStore,
 		pennsieve: pennsieve,
 		notifier:  notifier,
@@ -41,6 +48,7 @@ func NewPublishingService(pubStore store.PublishingStore, pennsieve store.Pennsi
 }
 
 type publishingService struct {
+	logger    *slog.Logger
 	store     store.PublishingStore
 	pennsieve store.PennsievePublishingStore
 	notifier  notification.Notifier
@@ -50,28 +58,34 @@ func usersName(user *pgdbModels.User) string {
 	return fmt.Sprintf("%s %s", user.FirstName, user.LastName)
 }
 
-func sendEmail(ctx context.Context, sender string, recipients []string, subject string, body string) error {
+func sendEmail(ctx context.Context, logger *slog.Logger, sender string, recipients []string, subject string, body string) error {
 	// send email message
-	emailAgent := ses.MakeEmailer()
+	emailAgent := ses.MakeEmailer(logger)
 	err := emailAgent.SendMessage(ctx, sender, recipients, subject, body, sesTypes.Text)
 	if err != nil {
-		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.sendEmail()")
+		logger.Error("failed to send email",
+			slog.Int(logging.KeyCount, len(recipients)),
+			slog.Any(logging.KeyError, err))
 	}
 	return err
 }
 
 func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposal, action notification.Notification, repository *models.Repository) error {
-	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal), "action": action, "repository": fmt.Sprintf("%+v", repository)}).Info("service.notifyPublishingTeam()")
+	logger := s.logger.With(
+		slog.String(logging.KeyNodeID, proposal.NodeId),
+		slog.String(logging.KeyOrgNodeID, repository.OrganizationNodeId),
+		slog.String(logging.KeyAction, action.String()))
+	logger.Info("notifying publishing team")
 
 	ctx := context.TODO()
 
 	// get Publishing team for the Repository
 	publishers, err := s.pennsieve.GetPublishingTeamMembers(ctx, repository)
 	if err != nil {
-		log.WithFields(log.Fields{"failed": "GetPublishingTeamMembers()", "error": fmt.Sprintf("%+v", err)}).Error("service.notifyPublishingTeam()")
+		logger.Error("pennsieve.GetPublishingTeamMembers() failed", slog.Any(logging.KeyError, err))
 		return err
 	}
-	log.WithFields(log.Fields{"publishers": fmt.Sprintf("%+v", publishers)}).Info("service.notifyPublishingTeam()")
+	logger.Debug("resolved publishing team", slog.Int(logging.KeyCount, len(publishers)))
 
 	// build list of Publisher's email addresses
 	var recipients []string
@@ -100,14 +114,18 @@ func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposa
 }
 
 func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal, action notification.Notification, repository *models.Repository) error {
-	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal), "action": action, "repository": fmt.Sprintf("%+v", repository)}).Info("service.notifyProposalOwner()")
+	logger := s.logger.With(
+		slog.String(logging.KeyNodeID, proposal.NodeId),
+		slog.String(logging.KeyOrgNodeID, repository.OrganizationNodeId),
+		slog.String(logging.KeyAction, action.String()))
+	logger.Info("notifying proposal owner")
 
 	ctx := context.TODO()
 
 	// lookup the Welcome Workspace
 	welcomeWorkspace, err := s.pennsieve.GetWelcomeWorkspace(ctx)
 	if err != nil {
-		log.WithFields(log.Fields{"error": fmt.Sprintf("%+v", err)}).Error("service.notifyProposalOwner()")
+		logger.Error("pennsieve.GetWelcomeWorkspace() failed", slog.Any(logging.KeyError, err))
 		return err
 	}
 
@@ -136,36 +154,35 @@ func (s *publishingService) notifyProposalOwner(proposal *models.DatasetProposal
 }
 
 func (s *publishingService) GetPublishingInfo() ([]dtos.InfoDTO, error) {
-	log.Println("GetPublishingInfo()")
 	var err error
 
 	info, err := s.store.GetInfo()
 	if err != nil {
-		log.Fatalln("GetPublishingInfo() store.GetInfo() err: ", err)
+		s.logger.Error("store.GetInfo() failed", slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
 	var infoDTOs []dtos.InfoDTO
 	for i := 0; i < len(info); i++ {
-		infoDTOs = append(infoDTOs, dtos.BuildInfoDTO(info[i]))
+		infoDTOs = append(infoDTOs, dtos.BuildInfoDTO(s.logger, info[i]))
 	}
 
+	s.logger.Debug("retrieved publishing info", slog.Int(logging.KeyCount, len(infoDTOs)))
 	return infoDTOs, nil
 }
 
 func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, error) {
-	log.Println("GetPublishingRepositories()")
 	var err error
 
 	repositories, err := s.store.GetRepositories()
 	if err != nil {
-		log.Fatalln("GetPublishingRepositories() store.GetRepositories() err: ", err)
+		s.logger.Error("store.GetRepositories() failed", slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
 	questions, err := s.store.GetQuestions()
 	if err != nil {
-		log.Fatalln("GetPublishingRepositories() store.GetQuestions() err: ", err)
+		s.logger.Error("store.GetQuestions() failed", slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
@@ -178,18 +195,18 @@ func (s *publishingService) GetPublishingRepositories() ([]dtos.RepositoryDTO, e
 	// TODO: create RepositoryDTO from repositories and questions
 	var repositoryDTOs []dtos.RepositoryDTO
 	for i := 0; i < len(repositories); i++ {
-		repositoryDTOs = append(repositoryDTOs, dtos.BuildRepositoryDTO(repositories[i], questionMap))
+		repositoryDTOs = append(repositoryDTOs, dtos.BuildRepositoryDTO(s.logger, repositories[i], questionMap))
 	}
+	s.logger.Debug("retrieved publishing repositories", slog.Int(logging.KeyCount, len(repositoryDTOs)))
 	return repositoryDTOs, nil
 }
 
 func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
-	log.Println("GetProposalQuestions()")
 	var err error
 
 	questions, err := s.store.GetQuestions()
 	if err != nil {
-		log.Fatalln("GetProposalQuestions() store.GetQuestions() err: ", err)
+		s.logger.Error("store.GetQuestions() failed", slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
@@ -201,6 +218,7 @@ func (s *publishingService) GetProposalQuestions() ([]dtos.QuestionDTO, error) {
 		})
 	}
 
+	s.logger.Debug("retrieved proposal questions", slog.Int(logging.KeyCount, len(questionDTOs)))
 	return questionDTOs, nil
 }
 
@@ -213,11 +231,13 @@ func proposalDTOsList(proposals []models.DatasetProposal) []dtos.DatasetProposal
 }
 
 func (s *publishingService) GetDatasetProposal(userId int, nodeId string) (dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.GetDatasetProposal()")
-
 	proposal, err := s.store.GetDatasetProposal(userId, nodeId)
 	if err != nil {
 		// TODO: fix this, we should not return anything for the value
+		s.logger.Error("store.GetDatasetProposal() failed",
+			slog.Int(logging.KeyUserID, userId),
+			slog.String(logging.KeyNodeID, nodeId),
+			slog.Any(logging.KeyError, err))
 		return dtos.DatasetProposalDTO{}, err
 	}
 
@@ -227,27 +247,36 @@ func (s *publishingService) GetDatasetProposal(userId int, nodeId string) (dtos.
 }
 
 func (s *publishingService) GetDatasetProposalsForUser(userId int64) ([]dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"userId": userId}).Info("service.GetDatasetProposalsForUser()")
-
 	proposals, err := s.store.GetDatasetProposalsForUser(userId)
 	if err != nil {
-		log.Error("store.GetDatasetProposalsForUser() failed: ", err)
+		s.logger.Error("store.GetDatasetProposalsForUser() failed",
+			slog.Int64(logging.KeyUserID, userId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
+	s.logger.Debug("retrieved proposals for user",
+		slog.Int64(logging.KeyUserID, userId),
+		slog.Int(logging.KeyCount, len(proposals)))
 	return proposalDTOsList(proposals), nil
 }
 
 func (s *publishingService) GetDatasetProposalsForWorkspace(orgNodeId string, status string) ([]dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "status": status}).Info("service.GetDatasetProposalsForWorkspace()")
-
 	// TODO: verify that status is one of: SUBMITTED, ACCEPTED, REJECTED
 
 	proposals, err := s.store.GetDatasetProposalsForWorkspace(orgNodeId, status)
 	if err != nil {
+		s.logger.Error("store.GetDatasetProposalsForWorkspace() failed",
+			slog.String(logging.KeyOrgNodeID, orgNodeId),
+			slog.String(logging.KeyProposalStatus, status),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
+	s.logger.Debug("retrieved proposals for workspace",
+		slog.String(logging.KeyOrgNodeID, orgNodeId),
+		slog.String(logging.KeyProposalStatus, status),
+		slog.Int(logging.KeyCount, len(proposals)))
 	return proposalDTOsList(proposals), nil
 }
 
@@ -255,11 +284,11 @@ func (s *publishingService) GetDatasetProposalsForWorkspace(orgNodeId string, st
 // TODO: move generating ProposalNodeId string elsewhere (pennsieve-core?)
 // TODO: refactor Create..() and Update..() to use common code
 func (s *publishingService) CreateDatasetProposal(userId int64, dto dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
-	log.Println("service.CreateDatasetProposal()")
-
 	user, err := s.pennsieve.GetProposalUser(context.TODO(), userId)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "pennsieve.GetProposalUser()", "error": fmt.Sprintf("%+v", err)}).Error("service.CreateDatasetProposal()")
+		s.logger.Error("pennsieve.GetProposalUser() failed",
+			slog.Int64(logging.KeyUserID, userId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
@@ -289,24 +318,27 @@ func (s *publishingService) CreateDatasetProposal(userId int64, dto dtos.Dataset
 		CreatedAt:          currentTime,
 		UpdatedAt:          currentTime,
 	}
-	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.CreateDatasetProposal()")
-
 	_, err = s.store.CreateDatasetProposal(proposal)
 	if err != nil {
-		log.Fatalln("service.CreateDatasetProposal() - store.CreateDatasetProposal() failed: ", err)
+		s.logger.Error("store.CreateDatasetProposal() failed",
+			slog.String(logging.KeyNodeID, proposal.NodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
+	s.logger.Info("created dataset proposal",
+		slog.String(logging.KeyNodeID, proposal.NodeId),
+		slog.String(logging.KeyOrgNodeID, proposal.OrganizationNodeId))
 
 	dtoResult := dtos.BuildDatasetProposalDTO(proposal)
 	return &dtoResult, nil
 }
 
 func (s *publishingService) UpdateDatasetProposal(userId int64, existing dtos.DatasetProposalDTO, update dtos.DatasetProposalDTO) (*dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"userId": userId, "existing": fmt.Sprintf("%+v", existing), "update": fmt.Sprintf("%+v", update)}).Info("service.UpdateDatasetProposal()")
-
 	user, err := s.pennsieve.GetProposalUser(context.TODO(), userId)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "pennsieve.GetProposalUser()", "error": fmt.Sprintf("%+v", err)}).Error("service.UpdateDatasetProposal()")
+		s.logger.Error("pennsieve.GetProposalUser() failed",
+			slog.Int64(logging.KeyUserID, userId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
 
@@ -336,52 +368,67 @@ func (s *publishingService) UpdateDatasetProposal(userId int64, existing dtos.Da
 		CreatedAt:          existing.CreatedAt,
 		UpdatedAt:          currentTime,
 	}
-	log.WithFields(log.Fields{"updated": fmt.Sprintf("%+v", updated)}).Debug("service.UpdateDatasetProposal()")
-
 	_, err = s.store.UpdateDatasetProposal(updated)
 	if err != nil {
-		log.Fatalln("store.UpdateDatasetProposal() failed: ", err)
+		s.logger.Error("store.UpdateDatasetProposal() failed",
+			slog.String(logging.KeyNodeID, updated.NodeId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
+	s.logger.Info("updated dataset proposal", slog.String(logging.KeyNodeID, updated.NodeId))
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
 	return &dtoResult, nil
 }
 
 func (s *publishingService) DeleteDatasetProposal(proposalDTO dtos.DatasetProposalDTO) (bool, error) {
-	log.WithFields(log.Fields{"proposalDTO": fmt.Sprintf("%+v", proposalDTO)}).Info("service.DeleteDatasetProposal()")
-
 	proposal := dtos.BuildDatasetProposal(proposalDTO)
 
 	err := s.store.DeleteDatasetProposal(proposal)
 	if err != nil {
-		log.Fatalln("store.DeleteDatasetProposal() failed: ", err)
+		s.logger.Error("store.DeleteDatasetProposal() failed",
+			slog.String(logging.KeyNodeID, proposal.NodeId),
+			slog.Any(logging.KeyError, err))
 		return false, err
 	}
 
+	s.logger.Info("deleted dataset proposal", slog.String(logging.KeyNodeID, proposal.NodeId))
 	return true, nil
 }
 
 func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.SubmitDatasetProposal()")
+	logger := s.logger.With(slog.String(logging.KeyNodeID, nodeId))
 
 	// get Dataset Proposal by User Id and Node Id
 	proposal, err := s.store.GetDatasetProposal(userId, nodeId)
 	if err != nil {
+		logger.Error("store.GetDatasetProposal() failed",
+			slog.Int(logging.KeyUserID, userId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
-	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.SubmitDatasetProposal()")
 
 	// verify that the Dataset Proposal Status is “DRAFT”
 	if proposal.ProposalStatus != "DRAFT" {
+		logger.Warn("proposal is not in DRAFT status",
+			slog.String(logging.KeyProposalStatus, proposal.ProposalStatus))
 		return nil, fmt.Errorf("invalid action: proposal.status must be DRAFT in order to submit")
 	}
 
 	// get the Repository using the Organization Node Id on the Dataset Proposal
 	repository, err := s.store.GetRepository(proposal.OrganizationNodeId)
+	if err != nil {
+		logger.Error("store.GetRepository() failed",
+			slog.String(logging.KeyOrgNodeID, proposal.OrganizationNodeId),
+			slog.Any(logging.KeyError, err))
+		return nil, err
+	}
 
 	// verify that Organization NodeId is the same on the Repository and the Dataset Proposal (extra check)
 	if proposal.OrganizationNodeId != repository.OrganizationNodeId {
+		logger.Error("proposal organization node id does not match the repository",
+			slog.String(logging.KeyOrgNodeID, proposal.OrganizationNodeId),
+			slog.String(logging.KeyRepository, repository.OrganizationNodeId))
 		return nil, fmt.Errorf("invalid state: OrganizationNodeId on proposal does not match the Repository")
 	}
 
@@ -400,6 +447,7 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 		}
 	}
 	if !ok {
+		logger.Warn("proposal does not answer all repository questions")
 		return nil, fmt.Errorf("invalid request: all Repository questions have not been answered")
 	}
 
@@ -412,14 +460,16 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 
 	updated, err := s.store.UpdateDatasetProposal(submitted)
 	if err != nil {
+		logger.Error("store.UpdateDatasetProposal() failed submitting proposal", slog.Any(logging.KeyError, err))
 		return nil, err
 	}
+	logger.Info("submitted dataset proposal")
 
 	// send email to Repository Publishers Team
-	log.WithFields(log.Fields{"notify": "publishers"}).Info("service.SubmitDatasetProposal()")
 	err = s.notifyPublishingTeam(submitted, notification.Submitted, repository)
 	if err != nil {
-		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.SubmitDatasetProposal()")
+		// A notification failure does not fail the submission itself.
+		logger.Error("failed to notify publishing team of submission", slog.Any(logging.KeyError, err))
 	}
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
@@ -427,22 +477,32 @@ func (s *publishingService) SubmitDatasetProposal(userId int, nodeId string) (*d
 }
 
 func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (*dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"userId": userId, "nodeId": nodeId}).Info("service.WithdrawDatasetProposal()")
+	logger := s.logger.With(slog.String(logging.KeyNodeID, nodeId))
 
 	// get Dataset Proposal by User Id and Node Id
 	proposal, err := s.store.GetDatasetProposal(userId, nodeId)
 	if err != nil {
+		logger.Error("store.GetDatasetProposal() failed",
+			slog.Int(logging.KeyUserID, userId),
+			slog.Any(logging.KeyError, err))
 		return nil, err
 	}
-	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.WithdrawDatasetProposal()")
 
 	// verify that the Dataset Proposal Status is “SUBMITTED”
 	if proposal.ProposalStatus != "SUBMITTED" {
+		logger.Warn("proposal is not in SUBMITTED status",
+			slog.String(logging.KeyProposalStatus, proposal.ProposalStatus))
 		return nil, fmt.Errorf("invalid action: proposal.status must be SUBMITTED in order to withdraw")
 	}
 
 	// get the Repository using the Organization Node Id on the Dataset Proposal
 	repository, err := s.store.GetRepository(proposal.OrganizationNodeId)
+	if err != nil {
+		logger.Error("store.GetRepository() failed",
+			slog.String(logging.KeyOrgNodeID, proposal.OrganizationNodeId),
+			slog.Any(logging.KeyError, err))
+		return nil, err
+	}
 
 	// update Dataset Proposal
 	currentTime := time.Now().Unix()
@@ -453,14 +513,16 @@ func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (
 
 	updated, err := s.store.UpdateDatasetProposal(withdrawn)
 	if err != nil {
+		logger.Error("store.UpdateDatasetProposal() failed withdrawing proposal", slog.Any(logging.KeyError, err))
 		return nil, err
 	}
+	logger.Info("withdrew dataset proposal")
 
 	// send email to Repository Publishers Team
-	log.WithFields(log.Fields{"notify": "publishers"}).Info("service.WithdrawDatasetProposal()")
 	err = s.notifyPublishingTeam(withdrawn, notification.Withdrawn, repository)
 	if err != nil {
-		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.WithdrawDatasetProposal()")
+		// A notification failure does not fail the withdrawal itself.
+		logger.Error("failed to notify publishing team of withdrawal", slog.Any(logging.KeyError, err))
 	}
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
@@ -468,30 +530,41 @@ func (s *publishingService) WithdrawDatasetProposal(userId int, nodeId string) (
 }
 
 func (s *publishingService) AcceptDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "nodeId": nodeId}).Info("service.AcceptDatasetProposal()")
+	logger := s.logger.With(
+		slog.String(logging.KeyOrgNodeID, orgNodeId),
+		slog.String(logging.KeyNodeID, nodeId))
 
 	// get Dataset Proposal by Repository Id and Node Id
 	proposal, err := s.store.GetDatasetProposalForRepository(orgNodeId, "SUBMITTED", nodeId)
 	if err != nil {
+		logger.Error("store.GetDatasetProposalForRepository() failed", slog.Any(logging.KeyError, err))
 		return nil, err
 	}
-	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.AcceptDatasetProposal()")
 
 	// verify that the Dataset Proposal Status is “SUBMITTED”
 	if proposal.ProposalStatus != "SUBMITTED" {
+		logger.Warn("proposal is not in SUBMITTED status",
+			slog.String(logging.KeyProposalStatus, proposal.ProposalStatus))
 		return nil, fmt.Errorf("invalid action: proposal.status must be SUBMITTED in order to accept")
 	}
 
 	// get the Repository using the Organization Node Id on the Dataset Proposal
 	repository, err := s.store.GetRepository(proposal.OrganizationNodeId)
+	if err != nil {
+		logger.Error("store.GetRepository() failed",
+			slog.String(logging.KeyRepository, proposal.OrganizationNodeId),
+			slog.Any(logging.KeyError, err))
+		return nil, err
+	}
 
 	// create dataset
 	result, err := s.pennsieve.CreateDatasetForAcceptedProposal(context.TODO(), proposal)
 	if err != nil {
-		log.WithFields(log.Fields{"failure": "CreateDatasetForAcceptedProposal", "err": fmt.Sprintf("%+v", err)}).Error("service.AcceptDatasetProposal()")
-		return nil, fmt.Errorf(fmt.Sprintf("failed to CreateDatasetForAcceptedProposal (error: %+v)", err))
+		logger.Error("pennsieve.CreateDatasetForAcceptedProposal() failed", slog.Any(logging.KeyError, err))
+		return nil, fmt.Errorf("failed to CreateDatasetForAcceptedProposal: %w", err)
 	}
-	log.WithFields(log.Fields{"result": fmt.Sprintf("%+v", result)}).Debug("service.AcceptDatasetProposal()")
+	logger.Info("created dataset for accepted proposal",
+		slog.String(logging.KeyDatasetID, result.Dataset.NodeId.String))
 
 	// update Dataset Proposal
 	// - set Status = “ACCEPTED”
@@ -506,14 +579,16 @@ func (s *publishingService) AcceptDatasetProposal(orgNodeId string, nodeId strin
 
 	updated, err := s.store.UpdateDatasetProposal(accepted)
 	if err != nil {
+		logger.Error("store.UpdateDatasetProposal() failed accepting proposal", slog.Any(logging.KeyError, err))
 		return nil, err
 	}
+	logger.Info("accepted dataset proposal")
 
 	// send email to Dataset Proposal author/originator
-	log.WithFields(log.Fields{"notify": "owner"}).Info("service.AcceptDatasetProposal()")
 	err = s.notifyProposalOwner(accepted, notification.Accepted, repository)
 	if err != nil {
-		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.AcceptDatasetProposal()")
+		// A notification failure does not fail the acceptance itself.
+		logger.Error("failed to notify proposal owner of acceptance", slog.Any(logging.KeyError, err))
 	}
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)
@@ -521,22 +596,32 @@ func (s *publishingService) AcceptDatasetProposal(orgNodeId string, nodeId strin
 }
 
 func (s *publishingService) RejectDatasetProposal(orgNodeId string, nodeId string) (*dtos.DatasetProposalDTO, error) {
-	log.WithFields(log.Fields{"orgNodeId": orgNodeId, "nodeId": nodeId}).Info("service.RejectDatasetProposal()")
+	logger := s.logger.With(
+		slog.String(logging.KeyOrgNodeID, orgNodeId),
+		slog.String(logging.KeyNodeID, nodeId))
 
 	// get Dataset Proposal by Repository Id and Node Id
 	proposal, err := s.store.GetDatasetProposalForRepository(orgNodeId, "SUBMITTED", nodeId)
 	if err != nil {
+		logger.Error("store.GetDatasetProposalForRepository() failed", slog.Any(logging.KeyError, err))
 		return nil, err
 	}
-	log.WithFields(log.Fields{"proposal": fmt.Sprintf("%+v", proposal)}).Debug("service.RejectDatasetProposal()")
 
 	// verify that the Dataset Proposal Status is “SUBMITTED”
 	if proposal.ProposalStatus != "SUBMITTED" {
+		logger.Warn("proposal is not in SUBMITTED status",
+			slog.String(logging.KeyProposalStatus, proposal.ProposalStatus))
 		return nil, fmt.Errorf("invalid action: proposal.status must be SUBMITTED in order to reject")
 	}
 
 	// get the Repository using the Organization Node Id on the Dataset Proposal
 	repository, err := s.store.GetRepository(proposal.OrganizationNodeId)
+	if err != nil {
+		logger.Error("store.GetRepository() failed",
+			slog.String(logging.KeyRepository, proposal.OrganizationNodeId),
+			slog.Any(logging.KeyError, err))
+		return nil, err
+	}
 
 	// update Dataset Proposal
 	// - set Status = “REJECTED”
@@ -549,14 +634,16 @@ func (s *publishingService) RejectDatasetProposal(orgNodeId string, nodeId strin
 
 	updated, err := s.store.UpdateDatasetProposal(rejected)
 	if err != nil {
+		logger.Error("store.UpdateDatasetProposal() failed rejecting proposal", slog.Any(logging.KeyError, err))
 		return nil, err
 	}
+	logger.Info("rejected dataset proposal")
 
 	// send email to Dataset Proposal author/originator
-	log.WithFields(log.Fields{"notify": "owner"}).Info("service.RejectDatasetProposal()")
 	err = s.notifyProposalOwner(rejected, notification.Rejected, repository)
 	if err != nil {
-		log.WithFields(log.Fields{"notifyStatus": "error", "error": fmt.Sprintf("%+v", err)}).Error("service.RejectDatasetProposal()")
+		// A notification failure does not fail the rejection itself.
+		logger.Error("failed to notify proposal owner of rejection", slog.Any(logging.KeyError, err))
 	}
 
 	dtoResult := dtos.BuildDatasetProposalDTO(updated)

@@ -1,10 +1,28 @@
 package dtos
 
 import (
-	"github.com/pennsieve/publishing-service/api/aws/s3"
-	"github.com/pennsieve/publishing-service/api/models"
+	"log/slog"
 	"time"
+
+	"github.com/pennsieve/publishing-service/api/aws/s3"
+	"github.com/pennsieve/publishing-service/api/logging"
+	"github.com/pennsieve/publishing-service/api/models"
 )
+
+// presignedURL returns a 12-hour presigned GET URL for an S3 file, or the empty
+// string if presigning fails. The presigned request was previously dereferenced
+// without checking the error, which panics on any presign failure.
+func presignedURL(logger *slog.Logger, presigner *s3.Presigner, file models.S3Location) string {
+	request, err := presigner.GetObject(file.S3Bucket, file.S3Key, 12*3600)
+	if err != nil || request == nil {
+		logger.Error("failed to presign a file URL",
+			slog.String(logging.KeyS3Bucket, file.S3Bucket),
+			slog.String(logging.KeyS3Key, file.S3Key),
+			slog.Any(logging.KeyError, err))
+		return ""
+	}
+	return request.URL
+}
 
 func BuildQuestionDTO(question models.Question) QuestionDTO {
 	return QuestionDTO{
@@ -44,24 +62,18 @@ func BuildContributor(contributor ContributorDTO) models.Contributor {
 	}
 }
 
-func BuildInfoDTO(info models.Info) InfoDTO {
-	presigner := s3.MakePresigner()
-
-	file, _ := presigner.GetObject(
-		info.File.S3Bucket,
-		info.File.S3Key,
-		12*3600, // 12 hours
-	)
+func BuildInfoDTO(logger *slog.Logger, info models.Info) InfoDTO {
+	presigner := s3.MakePresigner(logger)
 
 	return InfoDTO{
 		Tag:  info.Tag,
 		Type: info.Type,
-		URL:  file.URL,
+		URL:  presignedURL(logger, presigner, info.File),
 	}
 }
 
 // TODO: can we better abstract the type for questionMap?
-func BuildRepositoryDTO(repository models.Repository, questionMap map[int]QuestionDTO) RepositoryDTO {
+func BuildRepositoryDTO(logger *slog.Logger, repository models.Repository, questionMap map[int]QuestionDTO) RepositoryDTO {
 	// build list of selected Questions for the Repository
 	var questionDTOs []QuestionDTO
 	for i := 0; i < len(repository.Questions); i++ {
@@ -69,19 +81,7 @@ func BuildRepositoryDTO(repository models.Repository, questionMap map[int]Questi
 		questionDTOs = append(questionDTOs, questionMap[questionNumber])
 	}
 
-	presigner := s3.MakePresigner()
-
-	overviewDocument, _ := presigner.GetObject(
-		repository.OverviewDocument.S3Bucket,
-		repository.OverviewDocument.S3Key,
-		12*3600, // 12 hours
-	)
-
-	logoFile, _ := presigner.GetObject(
-		repository.LogoFile.S3Bucket,
-		repository.LogoFile.S3Key,
-		12*3600, // 12 hours
-	)
+	presigner := s3.MakePresigner(logger)
 
 	return RepositoryDTO{
 		OrganizationNodeId:  repository.OrganizationNodeId,
@@ -90,8 +90,8 @@ func BuildRepositoryDTO(repository models.Repository, questionMap map[int]Questi
 		Type:                repository.Type,
 		Description:         repository.Description,
 		URL:                 repository.URL,
-		OverviewDocumentUrl: overviewDocument.URL,
-		LogoFileUrl:         logoFile.URL,
+		OverviewDocumentUrl: presignedURL(logger, presigner, repository.OverviewDocument),
+		LogoFileUrl:         presignedURL(logger, presigner, repository.LogoFile),
 		Questions:           questionDTOs,
 		CreatedAt:           repository.CreatedAt,
 		UpdatedAt:           repository.UpdatedAt,
