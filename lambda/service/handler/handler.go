@@ -22,11 +22,13 @@ func init() {
 	logging.SetDefaultFromEnv()
 }
 
-func PublishingServiceHandler(request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
+// PublishingServiceHandler takes the invocation context so that the Lambda
+// invocation id the runtime puts there can be logged; lambda.Start supplies it.
+func PublishingServiceHandler(ctx context.Context, request events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
 	// The request-scoped logger is built exactly once, here, and threaded
 	// through every layer below. Nothing downstream reconstructs it or falls
 	// back to slog.Default.
-	logger := newRequestLogger(request)
+	logger := newRequestLogger(ctx, request)
 
 	return handleRequest(logger, request)
 }

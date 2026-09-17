@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambdacontext"
 	"github.com/google/uuid"
 	"github.com/pennsieve/publishing-service/api/logging"
 )
@@ -59,9 +61,38 @@ func equalFold(a, b string) bool {
 // downstream layer receives this logger (or a child of it via .With) rather
 // than reaching for slog.Default, so that the trace id is present on every
 // line without any call site having to remember it.
-func newRequestLogger(request events.APIGatewayV2HTTPRequest) *slog.Logger {
-	return slog.Default().With(
+//
+// Three distinct ids are attached, and they are deliberately kept apart:
+//
+//   - the trace id, which identifies the logical operation and survives hops
+//     (an inbound correlation header when the caller sent one);
+//   - the API Gateway request id, minted fresh by API Gateway for this hop;
+//   - the Lambda invocation id, minted fresh by Lambda for this invocation.
+//
+// The last two are AWS-assigned per-hop identifiers: neither correlates work
+// across service boundaries, but both let an operator cross-reference AWS's own
+// CloudWatch/X-Ray records for this specific invocation.
+func newRequestLogger(ctx context.Context, request events.APIGatewayV2HTTPRequest) *slog.Logger {
+	logger := slog.Default().With(
 		slog.String(logging.KeyTraceID, traceID(request)),
 		slog.String(logging.KeyRequestID, request.RequestContext.RequestID),
 	)
+	// Absent outside a real Lambda invocation (local runs, tests); omit the
+	// field rather than logging an empty string.
+	if awsRequestID := awsRequestID(ctx); awsRequestID != "" {
+		logger = logger.With(slog.String(logging.KeyAwsRequestID, awsRequestID))
+	}
+	return logger
+}
+
+// awsRequestID returns the Lambda invocation id carried on the context by the
+// runtime, or "" when there is none.
+func awsRequestID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if lc, ok := lambdacontext.FromContext(ctx); ok && lc != nil {
+		return lc.AwsRequestID
+	}
+	return ""
 }

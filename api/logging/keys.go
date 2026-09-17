@@ -16,7 +16,20 @@ const (
 
 	// KeyRequestID is the API Gateway request id, kept alongside the trace id
 	// so a log line can be tied back to an API Gateway access log entry.
+	//
+	// This is a per-hop, AWS-assigned id: API Gateway mints a fresh one for
+	// every request it forwards, so it identifies this one hop and must not be
+	// used to correlate a logical operation across services. Use KeyTraceID for
+	// that.
 	KeyRequestID = "requestId"
+
+	// KeyAwsRequestID is the Lambda invocation id (lambdacontext.AwsRequestID).
+	// It is a different identifier from KeyRequestID: that one belongs to the
+	// API Gateway layer, this one to the underlying Lambda invocation, and the
+	// two do not match. Logging both lets an operator cross-reference this
+	// service's logs against AWS's own CloudWatch/X-Ray records for a specific
+	// invocation. Like KeyRequestID it is per-hop, not a correlation id.
+	KeyAwsRequestID = "awsRequestId"
 
 	// Request routing.
 	KeyMethod = "method"
