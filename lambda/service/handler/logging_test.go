@@ -2,11 +2,13 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambdacontext"
 	"github.com/pennsieve/publishing-service/api/logging"
 )
 
@@ -93,30 +95,107 @@ func TestEqualFold(t *testing.T) {
 	}
 }
 
-// TestNewRequestLoggerCarriesTraceID checks that every line written through the
-// request-scoped logger really carries the trace id and the API Gateway request
-// id — the whole point of the correlation work.
-func TestNewRequestLoggerCarriesTraceID(t *testing.T) {
+// captureRequestLog runs the request-scoped logger for one line and returns the
+// decoded JSON record, so the assertions below can look at individual fields.
+func captureRequestLog(t *testing.T, ctx context.Context, request events.APIGatewayV2HTTPRequest) map[string]any {
+	t.Helper()
+
 	var buf bytes.Buffer
 	original := slog.Default()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	t.Cleanup(func() { slog.SetDefault(original) })
 
-	request := events.APIGatewayV2HTTPRequest{
-		Headers: map[string]string{"x-amzn-trace-id": "trace-abc"},
-	}
-	request.RequestContext.RequestID = "apigw-req-1"
-
-	newRequestLogger(request).Info("handling request")
+	newRequestLogger(ctx, request).Info("handling request")
 
 	var record map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &record); err != nil {
 		t.Fatalf("log output is not valid JSON: %v (output: %s)", err, buf.String())
 	}
+	return record
+}
+
+// TestNewRequestLoggerCarriesTraceID checks that every line written through the
+// request-scoped logger really carries the trace id and the API Gateway request
+// id — the whole point of the correlation work.
+func TestNewRequestLoggerCarriesTraceID(t *testing.T) {
+	request := events.APIGatewayV2HTTPRequest{
+		Headers: map[string]string{"x-amzn-trace-id": "trace-abc"},
+	}
+	request.RequestContext.RequestID = "apigw-req-1"
+
+	record := captureRequestLog(t, context.Background(), request)
+
 	if record[logging.KeyTraceID] != "trace-abc" {
 		t.Errorf("%s = %v, want %q", logging.KeyTraceID, record[logging.KeyTraceID], "trace-abc")
 	}
 	if record[logging.KeyRequestID] != "apigw-req-1" {
 		t.Errorf("%s = %v, want %q", logging.KeyRequestID, record[logging.KeyRequestID], "apigw-req-1")
+	}
+}
+
+// TestNewRequestLoggerCarriesAwsRequestID checks that the Lambda invocation id
+// is logged under its own key, separately from both the trace id and the API
+// Gateway request id — the three are distinct identifiers and each must keep
+// its own field.
+func TestNewRequestLoggerCarriesAwsRequestID(t *testing.T) {
+	request := events.APIGatewayV2HTTPRequest{
+		Headers: map[string]string{"x-amzn-trace-id": "trace-abc"},
+	}
+	request.RequestContext.RequestID = "apigw-req-1"
+
+	ctx := lambdacontext.NewContext(context.Background(), &lambdacontext.LambdaContext{
+		AwsRequestID: "lambda-invocation-1",
+	})
+
+	record := captureRequestLog(t, ctx, request)
+
+	if record[logging.KeyAwsRequestID] != "lambda-invocation-1" {
+		t.Errorf("%s = %v, want %q", logging.KeyAwsRequestID, record[logging.KeyAwsRequestID], "lambda-invocation-1")
+	}
+	// The other two ids must be untouched by the addition, and distinct from it.
+	if record[logging.KeyTraceID] != "trace-abc" {
+		t.Errorf("%s = %v, want %q", logging.KeyTraceID, record[logging.KeyTraceID], "trace-abc")
+	}
+	if record[logging.KeyRequestID] != "apigw-req-1" {
+		t.Errorf("%s = %v, want %q", logging.KeyRequestID, record[logging.KeyRequestID], "apigw-req-1")
+	}
+}
+
+// TestNewRequestLoggerOmitsAbsentAwsRequestID covers running outside a real
+// Lambda invocation: the field is left off rather than logged as empty.
+func TestNewRequestLoggerOmitsAbsentAwsRequestID(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		ctx  context.Context
+	}{
+		{name: "no lambda context", ctx: context.Background()},
+		{name: "nil context", ctx: nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			record := captureRequestLog(t, tt.ctx, events.APIGatewayV2HTTPRequest{})
+
+			if got, ok := record[logging.KeyAwsRequestID]; ok {
+				t.Errorf("%s present as %v, want the field omitted", logging.KeyAwsRequestID, got)
+			}
+			// The trace id is still generated regardless.
+			if record[logging.KeyTraceID] == "" || record[logging.KeyTraceID] == nil {
+				t.Errorf("%s missing, want a generated id", logging.KeyTraceID)
+			}
+		})
+	}
+}
+
+func TestAwsRequestID(t *testing.T) {
+	if got := awsRequestID(nil); got != "" {
+		t.Errorf("awsRequestID(nil) = %q, want \"\"", got)
+	}
+	if got := awsRequestID(context.Background()); got != "" {
+		t.Errorf("awsRequestID(background) = %q, want \"\"", got)
+	}
+	ctx := lambdacontext.NewContext(context.Background(), &lambdacontext.LambdaContext{
+		AwsRequestID: "req-xyz",
+	})
+	if got := awsRequestID(ctx); got != "req-xyz" {
+		t.Errorf("awsRequestID(lambda ctx) = %q, want %q", got, "req-xyz")
 	}
 }
