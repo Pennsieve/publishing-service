@@ -4,8 +4,8 @@ resource "aws_lambda_function" "service_lambda" {
   # into its own service bucket), so image_tag is otherwise unrecoverable post-deploy.
   description   = "Lambda Function which handles requests for the serverless Publishing Service (image_tag: ${var.image_tag})"
   function_name = "${var.environment_name}-${var.service_name}-service-lambda-${data.terraform_remote_state.region.outputs.aws_region_shortname}"
-  handler       = "publishing_service"
-  runtime       = "go1.x"
+  handler       = "bootstrap"
+  runtime       = "provided.al2023"
   role          = aws_iam_role.publishing_service_lambda_role.arn
   timeout       = 300
   memory_size   = 128
