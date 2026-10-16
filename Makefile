@@ -45,9 +45,9 @@ package:
 	@echo "***********************"
 	@echo ""
 	cd lambda/service; \
-  		env GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(WORKING_DIR)/lambda/bin/publishingService/publishing_service; \
+  		env GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags lambda.norpc -o $(WORKING_DIR)/lambda/bin/publishingService/bootstrap; \
 		cd $(WORKING_DIR)/lambda/bin/publishingService/ ; \
-			zip -r $(WORKING_DIR)/lambda/bin/publishingService/$(PACKAGE_NAME) .
+			zip $(WORKING_DIR)/lambda/bin/publishingService/$(PACKAGE_NAME) bootstrap
 
 # Copy Service lambda to S3 location
 publish:
