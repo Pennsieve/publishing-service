@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.44.0
 	github.com/google/uuid v1.3.0
 	github.com/pennsieve/email-service v1.0.0
-	github.com/pennsieve/pennsieve-go-core v1.21.0
+	github.com/pennsieve/pennsieve-go-core v1.22.0
 )
 
 require (
