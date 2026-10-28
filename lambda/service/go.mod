@@ -31,7 +31,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.29 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.29 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ses v1.22.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.2.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.44.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.31.3 // indirect
@@ -39,7 +38,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.43.3 // indirect
 	github.com/aws/smithy-go v1.27.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/lib/pq v1.10.7 // indirect
 	github.com/pennsieve/email-service v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.10.2 // indirect

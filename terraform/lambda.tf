@@ -36,11 +36,6 @@ resource "aws_lambda_function" "service_lambda" {
       REPOSITORY_QUESTIONS_TABLE = aws_dynamodb_table.repository_questions_dynamo_table.name
       DATASET_PROPOSAL_TABLE     = aws_dynamodb_table.dataset_proposals_dynamo_table.name
       RDS_PROXY_ENDPOINT         = data.terraform_remote_state.pennsieve_postgres.outputs.rds_proxy_endpoint
-      EMAIL_TEMPLATE_BUCKET      = data.terraform_remote_state.platform_infrastructure.outputs.dataset_assets_bucket_id
-      EMAIL_TEMPLATE_SUBMITTED   = "PublishingService/EmailTemplates/dataset-proposal-submitted.html"
-      EMAIL_TEMPLATE_WITHDRAWN   = "PublishingService/EmailTemplates/dataset-proposal-withdrawn.html"
-      EMAIL_TEMPLATE_ACCEPTED    = "PublishingService/EmailTemplates/dataset-proposal-accepted.html"
-      EMAIL_TEMPLATE_REJECTED    = "PublishingService/EmailTemplates/dataset-proposal-rejected.html"
       # email-service send queue — QueueNotifier enqueues here instead of SES.
       EMAIL_SERVICE_QUEUE_URL = data.terraform_remote_state.email_service.outputs.email_service_queue_url
     }
