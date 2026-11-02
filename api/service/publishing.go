@@ -9,8 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	pgdbModels "github.com/pennsieve/pennsieve-go-core/pkg/models/pgdb"
-	"github.com/pennsieve/publishing-service/api/aws/ses"
-	sesTypes "github.com/pennsieve/publishing-service/api/aws/ses/types"
 	"github.com/pennsieve/publishing-service/api/dtos"
 	"github.com/pennsieve/publishing-service/api/logging"
 	"github.com/pennsieve/publishing-service/api/models"
@@ -56,18 +54,6 @@ type publishingService struct {
 
 func usersName(user *pgdbModels.User) string {
 	return fmt.Sprintf("%s %s", user.FirstName, user.LastName)
-}
-
-func sendEmail(ctx context.Context, logger *slog.Logger, sender string, recipients []string, subject string, body string) error {
-	// send email message
-	emailAgent := ses.MakeEmailer(logger)
-	err := emailAgent.SendMessage(ctx, sender, recipients, subject, body, sesTypes.Text)
-	if err != nil {
-		logger.Error("failed to send email",
-			slog.Int(logging.KeyCount, len(recipients)),
-			slog.Any(logging.KeyError, err))
-	}
-	return err
 }
 
 func (s *publishingService) notifyPublishingTeam(proposal *models.DatasetProposal, action notification.Notification, repository *models.Repository) error {
