@@ -360,7 +360,7 @@ func (p *pennsieveStore) CreateDatasetForAcceptedProposal(ctx context.Context, p
 	err = p.ExecStoreTx(ctx, p.orgId, func(store *pgdbQueries.Queries) error {
 		_, err := store.CreateDataset(ctx, pgdbQueries.CreateDatasetParams{
 			Name:                         proposal.Name,
-			Description:                  "",
+			Description:                  proposal.Description,
 			Status:                       datasetStatus,
 			AutomaticallyProcessPackages: false,
 			License:                      "",
